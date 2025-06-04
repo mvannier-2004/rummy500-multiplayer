@@ -351,7 +351,8 @@ class GameRoom {
             melds: this.melds,
             gameStarted: this.gameStarted,
             isHost: this.hostId === playerId,
-            myTurn: this.players[this.currentPlayer]?.id === playerId
+            myTurn: this.players[this.currentPlayer]?.id === playerId,
+            hasDrawn: this.players[this.currentPlayer]?.id === playerId ? this.drawSource !== null : false
         };
     }
 }
@@ -440,6 +441,11 @@ io.on('connection', (socket) => {
             return;
         }
 
+        if (room.drawSource !== null) {
+            socket.emit('error', { message: 'Already drawn this turn' });
+            return;
+        }
+
         if (room.drawFromDeck(data.playerId)) {
             room.players.forEach(player => {
                 io.to(player.socketId).emit('game_update', room.getGameState(player.id));
@@ -454,6 +460,11 @@ io.on('connection', (socket) => {
         const room = rooms.get(data.roomCode);
         if (!room || room.players[room.currentPlayer]?.id !== data.playerId) {
             socket.emit('error', { message: 'Not your turn' });
+            return;
+        }
+
+        if (room.drawSource !== null) {
+            socket.emit('error', { message: 'Already drawn this turn' });
             return;
         }
 
@@ -591,4 +602,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Rummy 500 server running on port ${PORT}`);
 });
-
