@@ -425,12 +425,32 @@ io.on('connection', (socket) => {
             return;
         }
 
-        room.dealCards();
+        room.gameStarted = true;
         
-        // Update all players
+        // Just notify players - don't deal cards yet
         room.players.forEach(player => {
             io.to(player.socketId).emit('game_started');
             io.to(player.socketId).emit('game_update', room.getGameState(player.id));
+        });
+    });
+
+    socket.on('deal_cards', (data) => {
+        const room = rooms.get(data.roomCode);
+        if (!room || room.hostId !== data.playerId) {
+            socket.emit('error', { message: 'Only host can deal cards' });
+            return;
+        }
+
+        room.dealCards();
+        
+        // Notify all players that cards have been dealt
+        room.players.forEach(player => {
+            io.to(player.socketId).emit('cards_dealt');
+            io.to(player.socketId).emit('game_update', room.getGameState(player.id));
+        });
+        
+        io.to(data.roomCode).emit('notification', { 
+            message: 'Cards have been dealt!' 
         });
     });
 
@@ -575,6 +595,25 @@ io.on('connection', (socket) => {
         });
         io.to(data.roomCode).emit('notification', { 
             message: 'New round started!' 
+        });
+    });
+
+    socket.on('ready_for_next_round', (data) => {
+        const room = rooms.get(data.roomCode);
+        if (!room || room.gameWinner) return;
+
+        // Clear the round but don't deal yet
+        room.deck = [];
+        room.discardPile = [];
+        room.melds = [];
+        room.currentPlayer = (room.currentPlayer + 1) % room.players.length;
+        room.drawSource = null;
+        room.drawnCards = [];
+        
+        // Show deal modal to all players
+        room.players.forEach(player => {
+            io.to(player.socketId).emit('game_started');
+            io.to(player.socketId).emit('game_update', room.getGameState(player.id));
         });
     });
 
