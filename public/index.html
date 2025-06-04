@@ -690,7 +690,10 @@
         socket.on('cards_dealt', () => {
             document.getElementById('dealModal').style.display = 'none';
             showNotification('Cards dealt! Game is starting...');
-            updateDisplay();
+            // Force a display update after cards are dealt
+            setTimeout(() => {
+                updateDisplay();
+            }, 100);
         });
 
         socket.on('notification', (data) => {
@@ -767,6 +770,115 @@
                     container.appendChild(div);
                 }
             });
+        }
+
+        // Drag and drop handlers
+        let draggedCard = null;
+        let draggedIndex = null;
+
+        function handleDragStart(e) {
+            draggedCard = this;
+            draggedIndex = parseInt(this.dataset.index);
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', this.innerHTML);
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            
+            // Remove drag-over class from all cards
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('drag-over');
+            });
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            
+            const targetIndex = parseInt(this.dataset.index);
+            if (targetIndex !== draggedIndex) {
+                this.classList.add('drag-over');
+            }
+            
+            return false;
+        }
+
+        function handleDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            
+            const targetIndex = parseInt(this.dataset.index);
+            
+            if (draggedIndex !== targetIndex) {
+                // Rearrange the cards in hand
+                const draggedCardData = gameState.myHand[draggedIndex];
+                gameState.myHand.splice(draggedIndex, 1);
+                gameState.myHand.splice(targetIndex, 0, draggedCardData);
+                
+                // Update selected cards indices if needed
+                gameState.selectedCards = gameState.selectedCards.map(idx => {
+                    if (idx === draggedIndex) return targetIndex;
+                    if (draggedIndex < idx && idx <= targetIndex) return idx - 1;
+                    if (targetIndex <= idx && idx < draggedIndex) return idx + 1;
+                    return idx;
+                });
+                
+                updatePlayerHand();
+                updateControls();
+            }
+            
+            return false;
+        }
+
+        // Add discard pile drag handlers
+        function handleDiscardDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            
+            // Only allow if it's player's turn and they've drawn
+            if (gameState.myTurn && gameState.hasDrawn) {
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+            }
+            
+            return false;
+        }
+
+        function handleDiscardDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleDiscardDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            
+            this.classList.remove('drag-over');
+            
+            if (gameState.myTurn && gameState.hasDrawn && draggedIndex !== null) {
+                // Discard the dragged card
+                socket.emit('discard_card', {
+                    roomCode: gameState.roomCode,
+                    playerId: gameState.playerId,
+                    cardIndex: draggedIndex
+                });
+                
+                // Clear selections
+                gameState.selectedCards = [];
+                gameState.hasDrawn = false;
+            }
+            
+            return false;
         }
 
         function updatePlayerHand() {
