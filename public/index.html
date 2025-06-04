@@ -268,6 +268,16 @@
             border: 3px solid gold;
         }
 
+        .card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+            z-index: 1000;
+        }
+
+        .card.drag-over {
+            transform: translateX(10px);
+        }
+
         .card.red {
             color: #DC143C;
         }
@@ -687,8 +697,86 @@
                 }
                 div.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
                 div.onclick = () => selectCard(index);
+                
+                // Add drag and drop functionality
+                div.draggable = true;
+                div.dataset.index = index;
+                
+                div.addEventListener('dragstart', handleDragStart);
+                div.addEventListener('dragend', handleDragEnd);
+                div.addEventListener('dragover', handleDragOver);
+                div.addEventListener('drop', handleDrop);
+                div.addEventListener('dragleave', handleDragLeave);
+                
                 container.appendChild(div);
             });
+        }
+
+        // Drag and drop handlers
+        let draggedCard = null;
+        let draggedIndex = null;
+
+        function handleDragStart(e) {
+            draggedCard = this;
+            draggedIndex = parseInt(this.dataset.index);
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', this.innerHTML);
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            
+            // Remove drag-over class from all cards
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('drag-over');
+            });
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            
+            const targetIndex = parseInt(this.dataset.index);
+            if (targetIndex !== draggedIndex) {
+                this.classList.add('drag-over');
+            }
+            
+            return false;
+        }
+
+        function handleDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            
+            const targetIndex = parseInt(this.dataset.index);
+            
+            if (draggedIndex !== targetIndex) {
+                // Rearrange the cards in hand
+                const draggedCardData = gameState.myHand[draggedIndex];
+                gameState.myHand.splice(draggedIndex, 1);
+                gameState.myHand.splice(targetIndex, 0, draggedCardData);
+                
+                // Update selected cards indices if needed
+                gameState.selectedCards = gameState.selectedCards.map(idx => {
+                    if (idx === draggedIndex) return targetIndex;
+                    if (draggedIndex < idx && idx <= targetIndex) return idx - 1;
+                    if (targetIndex <= idx && idx < draggedIndex) return idx + 1;
+                    return idx;
+                });
+                
+                updatePlayerHand();
+                updateControls();
+            }
+            
+            return false;
         }
 
         function updateDiscardPile() {
