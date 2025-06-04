@@ -182,11 +182,23 @@
             font-size: 2em;
             color: black;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            position: relative;
         }
 
         .discard-pile.empty {
             background: rgba(255,255,255,0.1);
             border: 2px dashed rgba(255,255,255,0.3);
+        }
+
+        .discard-pile.drag-over {
+            border: 3px solid #FFD700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+            transform: scale(1.05);
+        }
+
+        .discard-pile.can-call-rummy {
+            animation: pulse 2s infinite;
+            cursor: pointer;
         }
 
         .meld-area {
@@ -229,6 +241,39 @@
             padding: 20px;
             border-radius: 15px;
             backdrop-filter: blur(10px);
+            position: relative;
+        }
+
+        .floating-controls {
+            position: absolute;
+            top: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .floating-btn {
+            padding: 10px 20px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .floating-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .floating-btn.danger {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
         }
 
         .player-hand {
@@ -513,13 +558,8 @@
             </div>
 
             <div class="player-area">
+                <div class="floating-controls" id="floatingControls"></div>
                 <div class="player-hand" id="playerHand"></div>
-                <div class="controls">
-                    <button class="btn" onclick="meldCards()" id="meldBtn">Meld Cards</button>
-                    <button class="btn" onclick="layOffCards()" id="layoffBtn">Lay Off</button>
-                    <button class="btn danger" onclick="discardCard()" id="discardBtn">Discard</button>
-                    <button class="btn" onclick="callRummy()" id="rummyBtn">Call Rummy!</button>
-                </div>
             </div>
         </div>
     </div>
@@ -751,29 +791,43 @@
             this.classList.remove('drag-over');
         }
 
-        function handleDrop(e) {
+        // Add discard pile drag handlers
+        function handleDiscardDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            
+            // Only allow if it's player's turn and they've drawn
+            if (gameState.myTurn && gameState.hasDrawn) {
+                e.dataTransfer.dropEffect = 'move';
+                this.classList.add('drag-over');
+            }
+            
+            return false;
+        }
+
+        function handleDiscardDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleDiscardDrop(e) {
             if (e.stopPropagation) {
                 e.stopPropagation();
             }
             
-            const targetIndex = parseInt(this.dataset.index);
+            this.classList.remove('drag-over');
             
-            if (draggedIndex !== targetIndex) {
-                // Rearrange the cards in hand
-                const draggedCardData = gameState.myHand[draggedIndex];
-                gameState.myHand.splice(draggedIndex, 1);
-                gameState.myHand.splice(targetIndex, 0, draggedCardData);
-                
-                // Update selected cards indices if needed
-                gameState.selectedCards = gameState.selectedCards.map(idx => {
-                    if (idx === draggedIndex) return targetIndex;
-                    if (draggedIndex < idx && idx <= targetIndex) return idx - 1;
-                    if (targetIndex <= idx && idx < draggedIndex) return idx + 1;
-                    return idx;
+            if (gameState.myTurn && gameState.hasDrawn && draggedIndex !== null) {
+                // Discard the dragged card
+                socket.emit('discard_card', {
+                    roomCode: gameState.roomCode,
+                    playerId: gameState.playerId,
+                    cardIndex: draggedIndex
                 });
                 
-                updatePlayerHand();
-                updateControls();
+                // Clear selections
+                gameState.selectedCards = [];
+                gameState.hasDrawn = false;
             }
             
             return false;
@@ -781,6 +835,8 @@
 
         function updateDiscardPile() {
             const pile = document.getElementById('discardPile');
+            pile.className = 'discard-pile';
+            
             if (gameState.discardPile.length > 0) {
                 const topCard = gameState.discardPile[0];
                 pile.className = `discard-pile card ${topCard.suit && ['♥', '♦'].includes(topCard.suit) ? 'red' : 'black'}`;
@@ -788,6 +844,20 @@
             } else {
                 pile.className = 'discard-pile empty';
                 pile.innerHTML = '<span style="color: rgba(255,255,255,0.5); font-size: 0.5em;">Empty</span>';
+            }
+            
+            // Add drag and drop for discarding
+            pile.addEventListener('dragover', handleDiscardDragOver);
+            pile.addEventListener('drop', handleDiscardDrop);
+            pile.addEventListener('dragleave', handleDiscardDragLeave);
+            
+            // Add click handler for Call Rummy
+            if (!gameState.myTurn && gameState.gameStarted) {
+                pile.classList.add('can-call-rummy');
+                pile.onclick = callRummy;
+            } else {
+                pile.classList.remove('can-call-rummy');
+                pile.onclick = drawFromDiscard;
             }
         }
 
@@ -831,17 +901,28 @@
         }
 
         function updateControls() {
-            const meldBtn = document.getElementById('meldBtn');
-            const layoffBtn = document.getElementById('layoffBtn');
-            const discardBtn = document.getElementById('discardBtn');
-            const rummyBtn = document.getElementById('rummyBtn');
-
-            // Disable all buttons if not my turn
-            const disabled = !gameState.myTurn || !gameState.gameStarted;
-            meldBtn.disabled = disabled || gameState.selectedCards.length < 3;
-            layoffBtn.disabled = disabled || gameState.selectedCards.length === 0 || gameState.selectedMeld === -1;
-            discardBtn.disabled = disabled || !gameState.hasDrawn || gameState.selectedCards.length !== 1;
-            rummyBtn.disabled = gameState.myTurn || !gameState.gameStarted;
+            const container = document.getElementById('floatingControls');
+            container.innerHTML = '';
+            
+            if (!gameState.myTurn || !gameState.gameStarted) return;
+            
+            // Show Meld button if 3+ cards selected
+            if (gameState.selectedCards.length >= 3) {
+                const meldBtn = document.createElement('button');
+                meldBtn.className = 'floating-btn';
+                meldBtn.textContent = 'Meld Selected';
+                meldBtn.onclick = meldCards;
+                container.appendChild(meldBtn);
+            }
+            
+            // Show Lay Off button if cards selected and a meld is selected
+            if (gameState.selectedCards.length > 0 && gameState.selectedMeld >= 0) {
+                const layoffBtn = document.createElement('button');
+                layoffBtn.className = 'floating-btn';
+                layoffBtn.textContent = 'Lay Off to Meld';
+                layoffBtn.onclick = layOffCards;
+                container.appendChild(layoffBtn);
+            }
         }
 
         // Player actions
@@ -856,6 +937,17 @@
                 gameState.selectedCards.splice(selectedIndex, 1);
             } else {
                 gameState.selectedCards.push(index);
+            }
+            updateDisplay();
+        }
+
+        function selectMeld(index) {
+            if (!gameState.myTurn || gameState.selectedCards.length === 0) return;
+            
+            if (gameState.selectedMeld === index) {
+                gameState.selectedMeld = -1;
+            } else {
+                gameState.selectedMeld = index;
             }
             updateDisplay();
         }
@@ -944,6 +1036,8 @@
                 roomCode: gameState.roomCode,
                 playerId: gameState.playerId
             });
+            
+            showNotification("Rummy! called - checking if valid...");
         }
 
         // Room management
