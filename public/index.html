@@ -595,6 +595,17 @@
         </div>
     </div>
 
+    <div class="modal" id="dealModal">
+        <div class="modal-content">
+            <h2 id="dealTitle">Ready to Start!</h2>
+            <p id="dealMessage">All players have joined. Click below to shuffle and deal the cards.</p>
+            <div id="dealPlayerList" style="margin: 20px 0;"></div>
+            <button class="btn" onclick="dealCards()" id="dealBtn" style="font-size: 1.2em; padding: 15px 30px;">
+                🃏 Deal Cards 🃏
+            </button>
+        </div>
+    </div>
+
     <div class="modal" id="scoreModal">
         <div class="modal-content">
             <h2 id="scoreTitle">Round Complete!</h2>
@@ -670,8 +681,15 @@
 
         socket.on('game_started', () => {
             document.getElementById('waitingModal').style.display = 'none';
-            showNotification('Game started!');
             gameState.gameStarted = true;
+            
+            // Show deal modal instead of starting immediately
+            showDealModal();
+        });
+
+        socket.on('cards_dealt', () => {
+            document.getElementById('dealModal').style.display = 'none';
+            showNotification('Cards dealt! Game is starting...');
             updateDisplay();
         });
 
@@ -1150,6 +1168,58 @@
             location.reload();
         }
 
+        function showDealModal() {
+            const modal = document.getElementById('dealModal');
+            const playerList = document.getElementById('dealPlayerList');
+            const dealBtn = document.getElementById('dealBtn');
+            const dealTitle = document.getElementById('dealTitle');
+            const dealMessage = document.getElementById('dealMessage');
+            
+            // Show player list
+            playerList.innerHTML = '<h3>Players Ready:</h3>';
+            gameState.players.forEach(player => {
+                playerList.innerHTML += `
+                    <div style="margin: 5px; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 5px;">
+                        ${player.name} ${player.id === gameState.playerId ? '(You)' : ''}
+                    </div>`;
+            });
+            
+            // Check if this is a new round or first game
+            const hasWinner = gameState.players.some(p => p.score >= 500);
+            if (hasWinner) {
+                dealTitle.textContent = 'Game Over!';
+                const winner = gameState.players.find(p => p.score >= 500);
+                dealMessage.textContent = `${winner.name} wins with ${winner.score} points!`;
+                dealBtn.style.display = 'none';
+            } else if (gameState.players.some(p => p.score > 0)) {
+                dealTitle.textContent = 'Ready for Next Round!';
+                dealMessage.textContent = 'Click below to deal cards for the next round.';
+                dealBtn.textContent = '🃏 Deal Next Round 🃏';
+            }
+            
+            // Only host can deal
+            if (gameState.isHost) {
+                dealBtn.style.display = 'inline-block';
+            } else {
+                dealBtn.style.display = 'none';
+                dealMessage.textContent += '\nWaiting for host to deal cards...';
+            }
+            
+            modal.style.display = 'flex';
+        }
+
+        function dealCards() {
+            if (!gameState.isHost) return;
+            
+            socket.emit('deal_cards', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId
+            });
+            
+            document.getElementById('dealBtn').disabled = true;
+            document.getElementById('dealBtn').textContent = 'Dealing...';
+        }
+
         function showScoreModal(data) {
             const modal = document.getElementById('scoreModal');
             const scoreBoard = document.getElementById('scoreBoard');
@@ -1179,11 +1249,13 @@
         }
 
         function nextRound() {
-            socket.emit('next_round', {
+            document.getElementById('scoreModal').style.display = 'none';
+            
+            // Show deal modal for next round
+            socket.emit('ready_for_next_round', {
                 roomCode: gameState.roomCode,
                 playerId: gameState.playerId
             });
-            document.getElementById('scoreModal').style.display = 'none';
         }
 
         function showNotification(message) {
