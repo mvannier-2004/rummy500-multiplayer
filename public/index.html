@@ -624,7 +624,9 @@
             playerName: '',
             isHost: false,
             gameStarted: false,
-            myTurn: false
+            myTurn: false,
+            deckCount: 52,
+            discardCount: 0
         };
 
         // Socket event handlers
@@ -655,6 +657,7 @@
         });
 
         socket.on('game_update', (data) => {
+            console.log('Game update received:', data); // Debug log
             updateGameState(data);
             updateDisplay();
         });
@@ -662,6 +665,8 @@
         socket.on('game_started', () => {
             document.getElementById('waitingModal').style.display = 'none';
             showNotification('Game started!');
+            gameState.gameStarted = true;
+            updateDisplay();
         });
 
         socket.on('notification', (data) => {
@@ -689,7 +694,21 @@
         }
 
         function updateGameState(data) {
-            gameState = { ...gameState, ...data };
+            // Preserve local UI state
+            const preservedState = {
+                selectedCards: gameState.selectedCards,
+                selectedMeld: gameState.selectedMeld,
+                playerName: gameState.playerName,
+                playerId: gameState.playerId
+            };
+            
+            // Update game state from server
+            gameState = { ...gameState, ...data, ...preservedState };
+            
+            // Update hasDrawn flag
+            if (gameState.myTurn && data.hasDrawn !== undefined) {
+                gameState.hasDrawn = data.hasDrawn;
+            }
         }
 
         function updateDisplay() {
@@ -937,6 +956,17 @@
                 gameState.selectedCards.splice(selectedIndex, 1);
             } else {
                 gameState.selectedCards.push(index);
+            }
+            updateDisplay();
+        }
+
+        function selectMeld(index) {
+            if (!gameState.myTurn || gameState.selectedCards.length === 0) return;
+            
+            if (gameState.selectedMeld === index) {
+                gameState.selectedMeld = -1;
+            } else {
+                gameState.selectedMeld = index;
             }
             updateDisplay();
         }
