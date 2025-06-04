@@ -607,7 +607,11 @@
 
     <script>
         // Socket.io connection
-        const socket = io(window.location.hostname === 'localhost' ? 'http://localhost:3000' : '/');
+        const socketUrl = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000' 
+            : window.location.origin;
+        console.log('Connecting to:', socketUrl);
+        const socket = io(socketUrl);
         
         // Game state
         let gameState = {
@@ -641,6 +645,7 @@
         });
 
         socket.on('room_created', (data) => {
+            console.log('Room created:', data);
             gameState.roomCode = data.roomCode;
             document.getElementById('waitingModal').style.display = 'flex';
             document.getElementById('waitingRoomCode').textContent = data.roomCode;
@@ -650,6 +655,7 @@
         });
 
         socket.on('room_joined', (data) => {
+            console.log('Room joined:', data);
             gameState.roomCode = data.roomCode;
             document.getElementById('joinModal').style.display = 'none';
             document.getElementById('waitingModal').style.display = 'flex';
@@ -712,6 +718,7 @@
         }
 
         function updateDisplay() {
+            console.log('UpdateDisplay called, gameState:', gameState); // Debug
             updateOpponents();
             updatePlayerHand();
             updateDiscardPile();
@@ -747,6 +754,13 @@
         function updatePlayerHand() {
             const container = document.getElementById('playerHand');
             container.innerHTML = '';
+            
+            console.log('Updating player hand, cards:', gameState.myHand); // Debug
+
+            if (!gameState.myHand || gameState.myHand.length === 0) {
+                console.log('No cards in hand');
+                return;
+            }
 
             gameState.myHand.forEach((card, index) => {
                 const div = document.createElement('div');
