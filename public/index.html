@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rummy 500 Online Multiplayer</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            overflow: hidden;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 1400px;
+            height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            animation: fadeIn 1s ease-out;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .info-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .game-board {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .opponents-area {
+            display: flex;
+            justify-content: space-around;
+            min-height: 120px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .opponent {
+            background: rgba(0,0,0,0.4);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            backdrop-filter: blur(5px);
+            min-width: 150px;
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+
+        .opponent.disconnected {
+            opacity: 0.5;
+        }
+
+        .opponent.current-turn {
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        .opponent:hover {
+            transform: translateY(-5px);
+        }
+
+        .table-area {
+            flex: 1;
+            background: radial-gradient(ellipse at center, #2d5a2d 0%, #1a3a1a 100%);
+            border-radius: 20px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .table-area::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+            animation: rotate 30s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .deck-area {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            z-index: 1;
+        }
+
+        .deck, .discard-pile {
+            width: 90px;
+            height: 130px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .deck {
+            background: linear-gradient(45deg, #8B0000 25%, #DC143C 25%, #DC143C 50%, #8B0000 50%, #8B0000 75%, #DC143C 75%, #DC143C);
+            background-size: 20px 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        .deck:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+
+        .deck-count {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+        }
+
+        .discard-pile {
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            color: black;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        .discard-pile.empty {
+            background: rgba(255,255,255,0.1);
+            border: 2px dashed rgba(255,255,255,0.3);
+        }
+
+        .meld-area {
+            flex: 1;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            overflow-y: auto;
+            z-index: 1;
+        }
+
+        .meld {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            min-height: 80px;
+            transition: all 0.3s ease;
+            border: 2px dashed rgba(255,255,255,0.3);
+            cursor: pointer;
+        }
+
+        .meld:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.5);
+        }
+
+        .meld.selected-meld {
+            border-color: gold;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .player-area {
+            background: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .player-hand {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            min-height: 130px;
+            margin-bottom: 15px;
+        }
+
+        .card {
+            width: 70px;
+            height: 100px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+            position: relative;
+            user-select: none;
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+
+        .card.selected {
+            transform: translateY(-15px);
+            box-shadow: 0 10px 25px rgba(255,215,0,0.6);
+            border: 3px solid gold;
+        }
+
+        .card.red {
+            color: #DC143C;
+        }
+
+        .card.black {
+            color: #000;
+        }
+
+        .card-back {
+            background: linear-gradient(45deg, #8B0000 25%, #DC143C 25%, #DC143C 50%, #8B0000 50%, #8B0000 75%, #DC143C 75%, #DC143C);
+            background-size: 10px 10px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: gray;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn.danger {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+
+        .modal-content input {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 5px;
+            border: none;
+            font-size: 1em;
+            width: 200px;
+        }
+
+        .score-board {
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .score-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            display: none;
+            animation: slideInRight 0.3s ease-out;
+            z-index: 2000;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .turn-indicator {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 3px solid #FFD700;
+            border-radius: 10px;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 215, 0, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+            }
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            background: rgba(0,0,0,0.7);
+        }
+
+        .connection-status.connected {
+            color: #4CAF50;
+        }
+
+        .connection-status.disconnected {
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">Disconnected</div>
+    
+    <div class="game-container">
+        <div class="header">
+            <h1>Rummy 500 Online</h1>
+        </div>
+
+        <div class="game-info">
+            <div class="info-item">
+                <div class="info-label">Room Code</div>
+                <div class="info-value" id="roomCode">-</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Players</div>
+                <div class="info-value" id="playerCount">0/8</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Your Score</div>
+                <div class="info-value" id="playerScore">0</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Current Turn</div>
+                <div class="info-value" id="currentTurn">-</div>
+            </div>
+        </div>
+
+        <div class="game-board">
+            <div class="opponents-area" id="opponentsArea"></div>
+
+            <div class="table-area">
+                <div class="deck-area">
+                    <div class="deck" id="deck" onclick="drawFromDeck()">
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 0.8em;">DECK</div>
+                        <div class="deck-count" id="deckCount">52</div>
+                    </div>
+                    <div class="discard-pile empty" id="discardPile" onclick="drawFromDiscard()">
+                        <span style="color: rgba(255,255,255,0.5); font-size: 0.5em;">Empty</span>
+                    </div>
+                </div>
+
+                <div class="meld-area" id="meldArea"></div>
+            </div>
+
+            <div class="player-area">
+                <div class="player-hand" id="playerHand"></div>
+                <div class="controls">
+                    <button class="btn" onclick="meldCards()" id="meldBtn">Meld Cards</button>
+                    <button class="btn" onclick="layOffCards()" id="layoffBtn">Lay Off</button>
+                    <button class="btn danger" onclick="discardCard()" id="discardBtn">Discard</button>
+                    <button class="btn" onclick="callRummy()" id="rummyBtn">Call Rummy!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="startModal" style="display: flex;">
+        <div class="modal-content">
+            <h2>Welcome to Rummy 500!</h2>
+            <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+            <br><br>
+            <button class="btn" onclick="createRoom()">Create Room</button>
+            <button class="btn" onclick="showJoinRoom()">Join Room</button>
+        </div>
+    </div>
+
+    <div class="modal" id="joinModal">
+        <div class="modal-content">
+            <h2>Join a Room</h2>
+            <input type="text" id="joinRoomCode" placeholder="Enter room code" maxlength="6" style="text-transform: uppercase;">
+            <br><br>
+            <button class="btn" onclick="joinRoom()">Join</button>
+            <button class="btn danger" onclick="hideJoinRoom()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="modal" id="waitingModal">
+        <div class="modal-content">
+            <h2>Waiting for Players...</h2>
+            <p>Room Code: <strong id="waitingRoomCode" style="font-size: 1.5em;"></strong></p>
+            <p>Share this code with your friends!</p>
+            <div id="waitingPlayerList" style="margin: 20px 0;"></div>
+            <button class="btn" onclick="startGame()" id="startGameBtn" style="display: none;">Start Game</button>
+            <button class="btn danger" onclick="leaveRoom()">Leave Room</button>
+        </div>
+    </div>
+
+    <div class="modal" id="scoreModal">
+        <div class="modal-content">
+            <h2 id="scoreTitle">Round Complete!</h2>
+            <div class="score-board" id="scoreBoard"></div>
+            <button class="btn" onclick="nextRound()" id="nextRoundBtn">Next Round</button>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Socket.io connection
+        const socket = io(window.location.hostname === 'localhost' ? 'http://localhost:3000' : '/');
+        
+        // Game state
+        let gameState = {
+            roomCode: '',
+            players: [],
+            currentPlayer: 0,
+            myHand: [],
+            discardPile: [],
+            melds: [],
+            selectedCards: [],
+            selectedMeld: -1,
+            hasDrawn: false,
+            playerId: '',
+            playerName: '',
+            isHost: false,
+            gameStarted: false,
+            myTurn: false
+        };
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            updateConnectionStatus(true);
+            console.log('Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            updateConnectionStatus(false);
+            showNotification('Disconnected from server');
+        });
+
+        socket.on('room_created', (data) => {
+            gameState.roomCode = data.roomCode;
+            document.getElementById('waitingModal').style.display = 'flex';
+            document.getElementById('waitingRoomCode').textContent = data.roomCode;
+            if (gameState.isHost) {
+                document.getElementById('startGameBtn').style.display = 'inline-block';
+            }
+        });
+
+        socket.on('room_joined', (data) => {
+            gameState.roomCode = data.roomCode;
+            document.getElementById('joinModal').style.display = 'none';
+            document.getElementById('waitingModal').style.display = 'flex';
+            document.getElementById('waitingRoomCode').textContent = data.roomCode;
+        });
+
+        socket.on('game_update', (data) => {
+            updateGameState(data);
+            updateDisplay();
+        });
+
+        socket.on('game_started', () => {
+            document.getElementById('waitingModal').style.display = 'none';
+            showNotification('Game started!');
+        });
+
+        socket.on('notification', (data) => {
+            showNotification(data.message);
+        });
+
+        socket.on('error', (data) => {
+            showNotification('Error: ' + data.message);
+        });
+
+        socket.on('round_end', (data) => {
+            showScoreModal(data);
+        });
+
+        // Game functions
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            if (connected) {
+                status.textContent = 'Connected';
+                status.className = 'connection-status connected';
+            } else {
+                status.textContent = 'Disconnected';
+                status.className = 'connection-status disconnected';
+            }
+        }
+
+        function updateGameState(data) {
+            gameState = { ...gameState, ...data };
+        }
+
+        function updateDisplay() {
+            updateOpponents();
+            updatePlayerHand();
+            updateDiscardPile();
+            updateMeldArea();
+            updateGameInfo();
+            updateControls();
+        }
+
+        function updateOpponents() {
+            const container = document.getElementById('opponentsArea');
+            container.innerHTML = '';
+
+            gameState.players.forEach((player, index) => {
+                if (player.id !== gameState.playerId) {
+                    const div = document.createElement('div');
+                    div.className = 'opponent';
+                    if (!player.connected) {
+                        div.classList.add('disconnected');
+                    }
+                    if (index === gameState.currentPlayer) {
+                        div.classList.add('current-turn');
+                    }
+                    div.innerHTML = `
+                        <div>${player.name} ${!player.connected ? '(Disconnected)' : ''}</div>
+                        <div>Cards: ${player.handCount}</div>
+                        <div>Score: ${player.score}</div>
+                    `;
+                    container.appendChild(div);
+                }
+            });
+        }
+
+        function updatePlayerHand() {
+            const container = document.getElementById('playerHand');
+            container.innerHTML = '';
+
+            gameState.myHand.forEach((card, index) => {
+                const div = document.createElement('div');
+                div.className = `card ${card.suit && ['♥', '♦'].includes(card.suit) ? 'red' : 'black'}`;
+                if (gameState.selectedCards.includes(index)) {
+                    div.classList.add('selected');
+                }
+                div.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
+                div.onclick = () => selectCard(index);
+                container.appendChild(div);
+            });
+        }
+
+        function updateDiscardPile() {
+            const pile = document.getElementById('discardPile');
+            if (gameState.discardPile.length > 0) {
+                const topCard = gameState.discardPile[0];
+                pile.className = `discard-pile card ${topCard.suit && ['♥', '♦'].includes(topCard.suit) ? 'red' : 'black'}`;
+                pile.textContent = topCard.rank === 'Joker' ? '🃏' : `${topCard.rank}${topCard.suit}`;
+            } else {
+                pile.className = 'discard-pile empty';
+                pile.innerHTML = '<span style="color: rgba(255,255,255,0.5); font-size: 0.5em;">Empty</span>';
+            }
+        }
+
+        function updateMeldArea() {
+            const container = document.getElementById('meldArea');
+            container.innerHTML = '';
+
+            gameState.melds.forEach((meld, index) => {
+                const div = document.createElement('div');
+                div.className = 'meld';
+                if (gameState.selectedMeld === index) {
+                    div.classList.add('selected-meld');
+                }
+                div.onclick = () => selectMeld(index);
+                
+                meld.cards.forEach(card => {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card ${card.suit && ['♥', '♦'].includes(card.suit) ? 'red' : 'black'}`;
+                    cardDiv.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
+                    div.appendChild(cardDiv);
+                });
+                
+                container.appendChild(div);
+            });
+        }
+
+        function updateGameInfo() {
+            document.getElementById('roomCode').textContent = gameState.roomCode;
+            document.getElementById('playerCount').textContent = `${gameState.players.length}/8`;
+            document.getElementById('deckCount').textContent = gameState.deckCount || '52';
+            
+            const player = gameState.players.find(p => p.id === gameState.playerId);
+            if (player) {
+                document.getElementById('playerScore').textContent = player.score;
+            }
+            
+            if (gameState.players[gameState.currentPlayer]) {
+                const currentPlayerName = gameState.players[gameState.currentPlayer].name;
+                document.getElementById('currentTurn').textContent = gameState.myTurn ? 'Your Turn!' : currentPlayerName;
+            }
+        }
+
+        function updateControls() {
+            const meldBtn = document.getElementById('meldBtn');
+            const layoffBtn = document.getElementById('layoffBtn');
+            const discardBtn = document.getElementById('discardBtn');
+            const rummyBtn = document.getElementById('rummyBtn');
+
+            // Disable all buttons if not my turn
+            const disabled = !gameState.myTurn || !gameState.gameStarted;
+            meldBtn.disabled = disabled || gameState.selectedCards.length < 3;
+            layoffBtn.disabled = disabled || gameState.selectedCards.length === 0 || gameState.selectedMeld === -1;
+            discardBtn.disabled = disabled || !gameState.hasDrawn || gameState.selectedCards.length !== 1;
+            rummyBtn.disabled = gameState.myTurn || !gameState.gameStarted;
+        }
+
+        // Player actions
+        function selectCard(index) {
+            if (!gameState.myTurn) {
+                showNotification("It's not your turn!");
+                return;
+            }
+
+            const selectedIndex = gameState.selectedCards.indexOf(index);
+            if (selectedIndex > -1) {
+                gameState.selectedCards.splice(selectedIndex, 1);
+            } else {
+                gameState.selectedCards.push(index);
+            }
+            updateDisplay();
+        }
+
+        function selectMeld(index) {
+            if (!gameState.myTurn || gameState.selectedCards.length === 0) return;
+            
+            if (gameState.selectedMeld === index) {
+                gameState.selectedMeld = -1;
+            } else {
+                gameState.selectedMeld = index;
+            }
+            updateDisplay();
+        }
+
+        function drawFromDeck() {
+            if (!gameState.myTurn || gameState.hasDrawn) {
+                if (!gameState.myTurn) showNotification("It's not your turn!");
+                if (gameState.hasDrawn) showNotification("You've already drawn!");
+                return;
+            }
+
+            socket.emit('draw_deck', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId
+            });
+            gameState.hasDrawn = true;
+        }
+
+        function drawFromDiscard() {
+            if (!gameState.myTurn || gameState.hasDrawn) {
+                if (!gameState.myTurn) showNotification("It's not your turn!");
+                if (gameState.hasDrawn) showNotification("You've already drawn!");
+                return;
+            }
+
+            // TODO: Implement multiple card selection from discard
+            socket.emit('draw_discard', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId,
+                numberOfCards: 1
+            });
+            gameState.hasDrawn = true;
+        }
+
+        function meldCards() {
+            if (!gameState.myTurn || gameState.selectedCards.length < 3) return;
+
+            socket.emit('meld_cards', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId,
+                cardIndices: gameState.selectedCards
+            });
+            gameState.selectedCards = [];
+        }
+
+        function layOffCards() {
+            if (!gameState.myTurn || gameState.selectedCards.length === 0 || gameState.selectedMeld === -1) return;
+
+            socket.emit('layoff_cards', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId,
+                cardIndices: gameState.selectedCards,
+                meldIndex: gameState.selectedMeld
+            });
+            gameState.selectedCards = [];
+            gameState.selectedMeld = -1;
+        }
+
+        function discardCard() {
+            if (!gameState.myTurn || !gameState.hasDrawn || gameState.selectedCards.length !== 1) return;
+
+            socket.emit('discard_card', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId,
+                cardIndex: gameState.selectedCards[0]
+            });
+            gameState.selectedCards = [];
+            gameState.hasDrawn = false;
+        }
+
+        function callRummy() {
+            if (gameState.myTurn || !gameState.gameStarted) return;
+
+            socket.emit('call_rummy', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId
+            });
+        }
+
+        // Room management
+        function createRoom() {
+            const name = document.getElementById('playerName').value.trim();
+            if (!name) {
+                showNotification('Please enter your name');
+                return;
+            }
+
+            gameState.playerName = name;
+            gameState.playerId = Math.random().toString(36).substr(2, 9);
+            gameState.isHost = true;
+
+            socket.emit('create_room', {
+                playerId: gameState.playerId,
+                playerName: gameState.playerName
+            });
+
+            document.getElementById('startModal').style.display = 'none';
+        }
+
+        function showJoinRoom() {
+            document.getElementById('startModal').style.display = 'none';
+            document.getElementById('joinModal').style.display = 'flex';
+            document.getElementById('joinRoomCode').focus();
+        }
+
+        function hideJoinRoom() {
+            document.getElementById('joinModal').style.display = 'none';
+            document.getElementById('startModal').style.display = 'flex';
+        }
+
+        function joinRoom() {
+            const name = document.getElementById('playerName').value.trim();
+            const roomCode = document.getElementById('joinRoomCode').value.trim().toUpperCase();
+            
+            if (!name || !roomCode) {
+                showNotification('Please enter your name and room code');
+                return;
+            }
+
+            gameState.playerName = name;
+            gameState.playerId = Math.random().toString(36).substr(2, 9);
+
+            socket.emit('join_room', {
+                roomCode: roomCode,
+                playerId: gameState.playerId,
+                playerName: gameState.playerName
+            });
+        }
+
+        function startGame() {
+            if (!gameState.isHost || gameState.players.length < 2) {
+                showNotification('Need at least 2 players to start');
+                return;
+            }
+
+            socket.emit('start_game', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId
+            });
+        }
+
+        function leaveRoom() {
+            location.reload();
+        }
+
+        function showScoreModal(data) {
+            const modal = document.getElementById('scoreModal');
+            const scoreBoard = document.getElementById('scoreBoard');
+            const title = document.getElementById('scoreTitle');
+            const nextBtn = document.getElementById('nextRoundBtn');
+            
+            scoreBoard.innerHTML = '';
+            
+            if (data.gameWinner) {
+                title.textContent = `${data.gameWinner.name} Wins!`;
+                nextBtn.style.display = 'none';
+            } else {
+                title.textContent = 'Round Complete!';
+                nextBtn.style.display = 'inline-block';
+            }
+            
+            data.scores.forEach(score => {
+                scoreBoard.innerHTML += `
+                    <div class="score-item">
+                        <span>${score.name}</span>
+                        <span>${score.roundScore > 0 ? '+' : ''}${score.roundScore} (Total: ${score.totalScore})</span>
+                    </div>
+                `;
+            });
+            
+            modal.style.display = 'flex';
+        }
+
+        function nextRound() {
+            socket.emit('next_round', {
+                roomCode: gameState.roomCode,
+                playerId: gameState.playerId
+            });
+            document.getElementById('scoreModal').style.display = 'none';
+        }
+
+        function showNotification(message) {
+            const notif = document.getElementById('notification');
+            notif.textContent = message;
+            notif.style.display = 'block';
+            setTimeout(() => {
+                notif.style.display = 'none';
+            }, 3000);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                if (document.getElementById('startModal').style.display === 'flex') {
+                    createRoom();
+                } else if (document.getElementById('joinModal').style.display === 'flex') {
+                    joinRoom();
+                }
+            }
+        });
+
+        // Update waiting room periodically
+        setInterval(() => {
+            if (document.getElementById('waitingModal').style.display === 'flex' && gameState.players.length > 0) {
+                const playerList = document.getElementById('waitingPlayerList');
+                playerList.innerHTML = '<h3>Players in Room:</h3>';
+                gameState.players.forEach(player => {
+                    playerList.innerHTML += `<div style="margin: 5px;">${player.name} ${player.id === gameState.playerId ? '(You)' : ''}</div>`;
+                });
+                
+                if (gameState.isHost && gameState.players.length >= 2) {
+                    document.getElementById('startGameBtn').style.display = 'inline-block';
+                }
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
