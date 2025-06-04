@@ -644,6 +644,10 @@
             discardCount: 0
         };
 
+        // Drag and drop variables (declare only once at the top)
+        let draggedCard = null;
+        let draggedIndex = null;
+
         // Socket event handlers
         socket.on('connect', () => {
             updateConnectionStatus(true);
@@ -773,9 +777,6 @@
         }
 
         // Drag and drop handlers
-        let draggedCard = null;
-        let draggedIndex = null;
-
         function handleDragStart(e) {
             draggedCard = this;
             draggedIndex = parseInt(this.dataset.index);
@@ -1215,6 +1216,37 @@
         }
 
         // Room management
+        function createRoom() {
+            const name = document.getElementById('playerName').value.trim();
+            if (!name) {
+                showNotification('Please enter your name');
+                return;
+            }
+
+            gameState.playerName = name;
+            gameState.playerId = Math.random().toString(36).substr(2, 9);
+            gameState.isHost = true;
+
+            socket.emit('create_room', {
+                playerId: gameState.playerId,
+                playerName: gameState.playerName
+            });
+
+            document.getElementById('startModal').style.display = 'none';
+        }
+
+        function showJoinRoom() {
+            document.getElementById('startModal').style.display = 'none';
+            document.getElementById('joinModal').style.display = 'flex';
+            document.getElementById('joinRoomCode').focus();
+        }
+
+        function hideJoinRoom() {
+            document.getElementById('joinModal').style.display = 'none';
+            document.getElementById('startModal').style.display = 'flex';
+        }
+
+        // Room management functions
         function createRoom() {
             const name = document.getElementById('playerName').value.trim();
             if (!name) {
