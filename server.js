@@ -177,32 +177,75 @@ class GameRoom {
     isValidMeld(cards) {
         if (cards.length < 3) return false;
 
-        // Check for set (same rank)
-        const ranks = cards.map(c => c.rank);
-        if (ranks.every(r => r === ranks[0] || r === 'Joker')) {
-            return true;
-        }
-
-        // Check for run (sequence)
+        // Separate jokers from regular cards
+        const jokers = cards.filter(c => c.rank === 'Joker');
         const nonJokers = cards.filter(c => c.rank !== 'Joker');
+        
+        // All jokers is valid
         if (nonJokers.length === 0) return true;
 
-        // All non-jokers must be same suit
-        const suits = nonJokers.map(c => c.suit);
-        if (!suits.every(s => s === suits[0])) return false;
-
-        // Sort and check sequence
-        const rankOrder = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-        const indices = nonJokers.map(c => rankOrder.indexOf(c.rank));
-        indices.sort((a, b) => a - b);
-
-        let jokerCount = cards.length - nonJokers.length;
-        for (let i = 1; i < indices.length; i++) {
-            const gap = indices[i] - indices[i-1] - 1;
-            if (gap > jokerCount) return false;
-            jokerCount -= gap;
+        // Get unique ranks (excluding jokers)
+        const ranks = nonJokers.map(c => c.rank);
+        const uniqueRanks = [...new Set(ranks)];
+        
+        // Check for set (all same rank)
+        if (uniqueRanks.length === 1) {
+            // For sets, each card must have a different suit
+            const suits = nonJokers.map(c => c.suit);
+            const uniqueSuits = [...new Set(suits)];
+            const isValidSet = uniqueSuits.length === nonJokers.length;
+            
+            console.log(`Set validation: rank=${uniqueRanks[0]}, suits=${suits.join(',')}, valid=${isValidSet}`);
+            return isValidSet;
         }
 
+        // Check for run (sequence in same suit)
+        // All cards must be same suit
+        const suits = nonJokers.map(c => c.suit);
+        const uniqueSuits = [...new Set(suits)];
+        
+        if (uniqueSuits.length !== 1) {
+            console.log('Run validation failed: multiple suits found:', uniqueSuits);
+            return false;
+        }
+
+        // Check if cards form a sequence
+        const suit = uniqueSuits[0];
+        const rankOrder = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        
+        // Convert ranks to indices
+        let indices = nonJokers.map(c => rankOrder.indexOf(c.rank));
+        indices.sort((a, b) => a - b);
+        
+        console.log(`Run validation: suit=${suit}, ranks=${ranks.join(',')}, indices=${indices.join(',')}`);
+        
+        // Special handling for Ace (can be low or high)
+        if (indices.includes(0) && indices.includes(12)) {
+            // Try high ace sequence
+            const highAceIndices = indices.filter(i => i !== 0).concat([13]);
+            highAceIndices.sort((a, b) => a - b);
+            
+            const lowAceValid = this.isValidSequence(indices, jokers.length);
+            const highAceValid = this.isValidSequence(highAceIndices, jokers.length);
+            
+            console.log(`Ace run: lowAceValid=${lowAceValid}, highAceValid=${highAceValid}`);
+            return lowAceValid || highAceValid;
+        }
+        
+        return this.isValidSequence(indices, jokers.length);
+    }
+
+    isValidSequence(indices, jokerCount) {
+        // Check if indices form a sequence with jokers filling gaps
+        for (let i = 1; i < indices.length; i++) {
+            const gap = indices[i] - indices[i-1] - 1;
+            if (gap < 0) return false; // Duplicate rank
+            if (gap > jokerCount) {
+                console.log(`Sequence gap too large: ${indices[i-1]} to ${indices[i]} needs ${gap} jokers, have ${jokerCount}`);
+                return false;
+            }
+            jokerCount -= gap;
+        }
         return true;
     }
 
@@ -211,13 +254,27 @@ class GameRoom {
         if (!player) return false;
 
         const cards = cardIndices.map(i => player.hand[i]);
-        if (!this.isValidMeld(cards)) return false;
+        
+        // Debug logging
+        console.log(`Player ${player.name} attempting to meld:`);
+        cards.forEach(c => console.log(`  ${c.rank}${c.suit}`));
+        
+        if (!this.isValidMeld(cards)) {
+            console.log('Meld validation failed');
+            // More detailed validation feedback
+            const ranks = cards.map(c => c.rank);
+            const suits = cards.map(c => c.suit);
+            console.log('Ranks:', ranks);
+            console.log('Suits:', suits);
+            return false;
+        }
 
         // Check if bottom card from discard must be played
         if (this.drawSource === 'discard' && this.drawnCards.length > 1) {
             const bottomCard = this.drawnCards[0];
             if (!cards.some(c => c.suit === bottomCard.suit && c.rank === bottomCard.rank)) {
-                return false; // Must play the bottom card drawn
+                console.log('Must play the bottom card drawn from discard');
+                return false;
             }
         }
 
@@ -231,7 +288,7 @@ class GameRoom {
             playerId: playerId
         });
 
-        console.log(`Player ${player.name} created a meld`);
+        console.log(`Player ${player.name} successfully created a meld`);
         return true;
     }
 
@@ -541,7 +598,29 @@ io.on('connection', (socket) => {
                 message: `${room.players.find(p => p.id === data.playerId).name} created a meld` 
             });
         } else {
-            socket.emit('error', { message: 'Invalid meld' });
+            // Send more specific error message
+            const player = room.players.find(p => p.id === data.playerId);
+            const cards = data.cardIndices.map(i => player.hand[i]);
+            let errorMsg = 'Invalid meld: ';
+            
+            if (cards.length < 3) {
+                errorMsg += 'Need at least 3 cards';
+            } else {
+                const ranks = cards.map(c => c.rank);
+                const suits = cards.map(c => c.suit);
+                const uniqueRanks = [...new Set(ranks.filter(r => r !== 'Joker'))];
+                const uniqueSuits = [...new Set(suits.filter(s => s))];
+                
+                if (uniqueRanks.length === 1) {
+                    errorMsg += 'Sets cannot have duplicate suits';
+                } else if (uniqueSuits.length > 1) {
+                    errorMsg += 'Runs must all be the same suit';
+                } else {
+                    errorMsg += 'Cards do not form a valid sequence';
+                }
+            }
+            
+            socket.emit('error', { message: errorMsg });
         }
     });
 
