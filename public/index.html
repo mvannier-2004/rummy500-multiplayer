@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Rummy 500 Online Multiplayer</title>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <style>
@@ -305,13 +306,14 @@
             font-size: 1.5em;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
             box-shadow: 0 3px 10px rgba(0,0,0,0.3);
             position: relative;
             user-select: none;
             touch-action: none;
             -webkit-touch-callout: none;
             -webkit-user-select: none;
+            will-change: transform;
         }
 
         .card:hover {
@@ -794,7 +796,7 @@
             const updateGameInfo = () => {
                 elements.roomCode.textContent = state.roomCode || '-';
                 elements.playerCount.textContent = `${state.players.length}/8`;
-                elements.deckCount.textContent = state.deckCount || '52';
+                elements.deckCount.textContent = state.deckCount !== undefined ? state.deckCount : '52';
                 
                 const player = state.players.find(p => p.id === state.playerId);
                 elements.playerScore.textContent = player ? player.score : '0';
@@ -892,8 +894,11 @@
                     }
                 };
                 
-                elements.discardPile.ondragleave = () => {
-                    elements.discardPile.classList.remove('drag-over');
+                elements.discardPile.ondragleave = (e) => {
+                    // Only remove drag-over if we're actually leaving the discard pile
+                    if (!e.currentTarget.contains(e.relatedTarget)) {
+                        elements.discardPile.classList.remove('drag-over');
+                    }
                 };
                 
                 elements.discardPile.ondrop = (e) => {
@@ -980,9 +985,11 @@
                     div.dataset.index = index;
                     
                     // Touch event state
-                    let touchItem = null;
-                    let touchOffset = { x: 0, y: 0 };
+                    let touchStartX = 0;
+                    let touchStartY = 0;
                     let touchClone = null;
+                    let animationFrame = null;
+                    let lastElementBelow = null;
                     
                     // Mouse drag events
                     div.ondragstart = (e) => {
@@ -1030,77 +1037,101 @@
                         }
                     };
                     
-                    // Touch events for iPad/mobile
+                    // Optimized touch events for iPad/mobile
                     div.ontouchstart = (e) => {
-                        e.preventDefault(); // Prevent scrolling
+                        e.preventDefault();
                         const touch = e.touches[0];
-                        touchItem = div;
+                        touchStartX = touch.clientX;
+                        touchStartY = touch.clientY;
                         draggedIndex = index;
                         
-                        // Create a clone for visual feedback
-                        touchClone = div.cloneNode(true);
-                        touchClone.style.position = 'fixed';
-                        touchClone.style.pointerEvents = 'none';
-                        touchClone.style.opacity = '0.8';
-                        touchClone.style.zIndex = '9999';
-                        touchClone.style.transform = 'scale(1.1)';
+                        // Create a simpler clone for better performance
+                        touchClone = document.createElement('div');
+                        touchClone.className = div.className;
+                        touchClone.textContent = div.textContent;
+                        touchClone.style.cssText = `
+                            position: fixed;
+                            pointer-events: none;
+                            opacity: 0.8;
+                            z-index: 9999;
+                            transform: scale(1.1) rotate(5deg);
+                            transition: none;
+                            left: ${touch.clientX - 35}px;
+                            top: ${touch.clientY - 50}px;
+                        `;
                         document.body.appendChild(touchClone);
                         
-                        const rect = div.getBoundingClientRect();
-                        touchOffset.x = touch.clientX - rect.left;
-                        touchOffset.y = touch.clientY - rect.top;
-                        
-                        touchClone.style.left = (touch.clientX - touchOffset.x) + 'px';
-                        touchClone.style.top = (touch.clientY - touchOffset.y) + 'px';
-                        
-                        div.classList.add('dragging');
+                        div.style.opacity = '0.3';
                     };
                     
                     div.ontouchmove = (e) => {
                         e.preventDefault();
                         if (!touchClone) return;
                         
-                        const touch = e.touches[0];
-                        touchClone.style.left = (touch.clientX - touchOffset.x) + 'px';
-                        touchClone.style.top = (touch.clientY - touchOffset.y) + 'px';
-                        
-                        // Find element under touch point
-                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-                        
-                        // Clear previous drag-over states
-                        document.querySelectorAll('.card').forEach(c => c.classList.remove('drag-over'));
-                        
-                        // Check if over another card in hand
-                        if (elementBelow && elementBelow.classList.contains('card') && elementBelow.parentElement === elements.playerHand) {
-                            if (parseInt(elementBelow.dataset.index) !== draggedIndex) {
-                                elementBelow.classList.add('drag-over');
-                            }
+                        // Cancel previous animation frame
+                        if (animationFrame) {
+                            cancelAnimationFrame(animationFrame);
                         }
                         
-                        // Check if over discard pile
-                        if (elementBelow === elements.discardPile || elements.discardPile.contains(elementBelow)) {
-                            if (state.myTurn && state.hasDrawn) {
-                                elements.discardPile.classList.add('drag-over');
+                        // Use requestAnimationFrame for smooth movement
+                        animationFrame = requestAnimationFrame(() => {
+                            const touch = e.touches[0];
+                            
+                            // Update clone position
+                            touchClone.style.left = (touch.clientX - 35) + 'px';
+                            touchClone.style.top = (touch.clientY - 50) + 'px';
+                            
+                            // Find element under touch point
+                            touchClone.style.pointerEvents = 'none';
+                            const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+                            touchClone.style.pointerEvents = '';
+                            
+                            // Only update if element changed
+                            if (elementBelow !== lastElementBelow) {
+                                // Clear previous states
+                                document.querySelectorAll('.card.drag-over').forEach(c => c.classList.remove('drag-over'));
+                                elements.discardPile.classList.remove('drag-over');
+                                
+                                // Check if over another card in hand
+                                if (elementBelow && elementBelow.classList.contains('card') && 
+                                    elementBelow.parentElement === elements.playerHand && 
+                                    parseInt(elementBelow.dataset.index) !== draggedIndex) {
+                                    elementBelow.classList.add('drag-over');
+                                }
+                                
+                                // Check if over discard pile
+                                if ((elementBelow === elements.discardPile || elements.discardPile.contains(elementBelow)) && 
+                                    state.myTurn && state.hasDrawn) {
+                                    elements.discardPile.classList.add('drag-over');
+                                }
+                                
+                                lastElementBelow = elementBelow;
                             }
-                        } else {
-                            elements.discardPile.classList.remove('drag-over');
-                        }
+                        });
                     };
                     
                     div.ontouchend = (e) => {
                         e.preventDefault();
                         if (!touchClone) return;
                         
+                        // Cancel animation frame
+                        if (animationFrame) {
+                            cancelAnimationFrame(animationFrame);
+                        }
+                        
                         const touch = e.changedTouches[0];
-                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
                         
                         // Remove clone
                         touchClone.remove();
                         touchClone = null;
-                        div.classList.remove('dragging');
+                        div.style.opacity = '';
+                        
+                        // Find drop target
+                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
                         
                         // Handle drop on another card
-                        if (elementBelow && elementBelow.classList.contains('card') && elementBelow.parentElement === elements.playerHand) {
+                        if (elementBelow && elementBelow.classList.contains('card') && 
+                            elementBelow.parentElement === elements.playerHand) {
                             const targetIndex = parseInt(elementBelow.dataset.index);
                             
                             if (draggedIndex !== targetIndex) {
@@ -1133,8 +1164,9 @@
                         }
                         
                         // Clear all drag-over states
-                        document.querySelectorAll('.card').forEach(c => c.classList.remove('drag-over'));
+                        document.querySelectorAll('.card.drag-over').forEach(c => c.classList.remove('drag-over'));
                         elements.discardPile.classList.remove('drag-over');
+                        lastElementBelow = null;
                     };
                     
                     elements.playerHand.appendChild(div);
@@ -1152,6 +1184,14 @@
                     meldBtn.className = 'floating-btn';
                     meldBtn.textContent = 'Meld Selected';
                     meldBtn.onclick = () => {
+                        // Debug logging
+                        console.log('Attempting to meld cards at indices:', state.selectedCards);
+                        const selectedCardDetails = state.selectedCards.map(i => {
+                            const card = state.myHand[i];
+                            return `${card.rank}${card.suit}`;
+                        });
+                        console.log('Selected cards:', selectedCardDetails);
+                        
                         socket.emit('meld_cards', {
                             roomCode: state.roomCode,
                             playerId: state.playerId,
