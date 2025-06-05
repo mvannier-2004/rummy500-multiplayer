@@ -1,4 +1,4 @@
-// server.js - Rummy 500 Multiplayer Server
+// server.js - Rummy 500 Multiplayer Server (Clean Rewrite)
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -16,9 +16,6 @@ const io = socketIo(server, {
     }
 });
 
-// Game rooms storage
-const rooms = new Map();
-
 // Card class
 class Card {
     constructor(suit, rank) {
@@ -31,10 +28,6 @@ class Card {
         if (this.rank === 'A' || this.rank === 'Joker') return 15;
         if (['K', 'Q', 'J'].includes(this.rank)) return 10;
         return parseInt(this.rank);
-    }
-
-    getColor() {
-        return ['♥', '♦'].includes(this.suit) ? 'red' : 'black';
     }
 }
 
@@ -49,13 +42,13 @@ class GameRoom {
         this.deck = [];
         this.discardPile = [];
         this.melds = [];
-        this.lastAction = null;
         this.drawSource = null;
         this.drawnCards = [];
     }
 
     addPlayer(player) {
         if (this.players.length >= 8) return false;
+        
         this.players.push({
             id: player.id,
             name: player.name,
@@ -65,16 +58,20 @@ class GameRoom {
             roundScore: 0,
             connected: true
         });
+        
+        console.log(`Player ${player.name} joined room ${this.roomCode}`);
         return true;
     }
 
     removePlayer(socketId) {
-        const index = this.players.findIndex(p => p.socketId === socketId);
-        if (index !== -1) {
-            this.players[index].connected = false;
-            // If all players disconnected, remove room
+        const player = this.players.find(p => p.socketId === socketId);
+        if (player) {
+            player.connected = false;
+            console.log(`Player ${player.name} disconnected from room ${this.roomCode}`);
+            
+            // If all players disconnected, return true to delete room
             if (this.players.every(p => !p.connected)) {
-                return true; // Signal to delete room
+                return true;
             }
         }
         return false;
@@ -85,6 +82,7 @@ class GameRoom {
         if (player) {
             player.socketId = socketId;
             player.connected = true;
+            console.log(`Player ${player.name} reconnected to room ${this.roomCode}`);
             return true;
         }
         return false;
@@ -130,6 +128,8 @@ class GameRoom {
         this.createDeck();
         const cardsPerPlayer = this.players.length === 2 ? 13 : 7;
 
+        console.log(`Dealing ${cardsPerPlayer} cards to ${this.players.length} players in room ${this.roomCode}`);
+
         for (let player of this.players) {
             player.hand = [];
             for (let i = 0; i < cardsPerPlayer; i++) {
@@ -140,6 +140,8 @@ class GameRoom {
         // First discard
         this.discardPile.push(this.deck.pop());
         this.gameStarted = true;
+        
+        console.log(`Cards dealt. Deck has ${this.deck.length} cards remaining`);
     }
 
     drawFromDeck(playerId) {
@@ -150,6 +152,8 @@ class GameRoom {
         player.hand.push(card);
         this.drawSource = 'deck';
         this.drawnCards = [card];
+        
+        console.log(`Player ${player.name} drew from deck`);
         return true;
     }
 
@@ -165,6 +169,8 @@ class GameRoom {
         player.hand.push(...cards);
         this.drawSource = 'discard';
         this.drawnCards = cards;
+        
+        console.log(`Player ${player.name} drew ${numberOfCards} cards from discard`);
         return true;
     }
 
@@ -225,6 +231,7 @@ class GameRoom {
             playerId: playerId
         });
 
+        console.log(`Player ${player.name} created a meld`);
         return true;
     }
 
@@ -244,6 +251,8 @@ class GameRoom {
 
         // Add to meld
         meld.cards.push(...cards);
+        
+        console.log(`Player ${player.name} laid off ${cards.length} cards`);
         return true;
     }
 
@@ -259,6 +268,8 @@ class GameRoom {
         this.drawSource = null;
         this.drawnCards = [];
 
+        console.log(`Player ${player.name} discarded a card`);
+
         // Check for round end
         if (player.hand.length === 0) {
             this.endRound();
@@ -270,8 +281,10 @@ class GameRoom {
         return 'next_turn';
     }
 
-    callRummy(playerId, cardFromDiscard) {
+    callRummy(playerId) {
         // Check if the discard pile has a playable card
+        if (this.discardPile.length === 0) return false;
+        
         const topCard = this.discardPile[this.discardPile.length - 1];
         
         // Check all melds to see if the card can be played
@@ -285,6 +298,7 @@ class GameRoom {
                 const player = this.players.find(p => p.id === playerId);
                 player.hand.push(this.discardPile.pop());
                 
+                console.log(`Player ${player.name} called Rummy!`);
                 return true;
             }
         }
@@ -293,6 +307,8 @@ class GameRoom {
     }
 
     endRound() {
+        console.log(`Round ended in room ${this.roomCode}`);
+        
         // Calculate scores
         for (let player of this.players) {
             let meldValue = 0;
@@ -310,12 +326,15 @@ class GameRoom {
 
             player.roundScore = meldValue - handValue;
             player.score += player.roundScore;
+            
+            console.log(`Player ${player.name}: +${player.roundScore} (Total: ${player.score})`);
         }
 
         // Check for game winner
         const winner = this.players.find(p => p.score >= 500);
         if (winner) {
             this.gameWinner = winner;
+            console.log(`Game winner: ${winner.name} with ${winner.score} points!`);
             return true;
         }
 
@@ -327,7 +346,10 @@ class GameRoom {
         this.discardPile = [];
         this.melds = [];
         this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
-        this.dealCards();
+        this.drawSource = null;
+        this.drawnCards = [];
+        
+        console.log(`Starting new round in room ${this.roomCode}`);
     }
 
     getGameState(playerId) {
@@ -357,6 +379,9 @@ class GameRoom {
     }
 }
 
+// Game rooms storage
+const rooms = new Map();
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
     console.log('New connection:', socket.id);
@@ -373,6 +398,8 @@ io.on('connection', (socket) => {
 
         rooms.set(roomCode, room);
         socket.join(roomCode);
+        
+        console.log(`Room ${roomCode} created by ${data.playerName}`);
         
         socket.emit('room_created', { roomCode });
         io.to(roomCode).emit('game_update', room.getGameState(data.playerId));
@@ -426,6 +453,7 @@ io.on('connection', (socket) => {
         }
 
         room.gameStarted = true;
+        console.log(`Game started in room ${data.roomCode}`);
         
         // Just notify players - don't deal cards yet
         room.players.forEach(player => {
@@ -558,6 +586,12 @@ io.on('connection', (socket) => {
                     gameWinner: gameEnded ? room.gameWinner : null
                 });
             });
+            
+            if (!gameEnded) {
+                io.to(data.roomCode).emit('notification', { 
+                    message: 'Round complete! Prepare for next round.' 
+                });
+            }
         } else if (result === 'next_turn') {
             room.players.forEach(player => {
                 io.to(player.socketId).emit('game_update', room.getGameState(player.id));
@@ -584,31 +618,12 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('next_round', (data) => {
-        const room = rooms.get(data.roomCode);
-        if (!room || room.gameWinner) return;
-
-        room.startNewRound();
-        
-        room.players.forEach(player => {
-            io.to(player.socketId).emit('game_update', room.getGameState(player.id));
-        });
-        io.to(data.roomCode).emit('notification', { 
-            message: 'New round started!' 
-        });
-    });
-
     socket.on('ready_for_next_round', (data) => {
         const room = rooms.get(data.roomCode);
         if (!room || room.gameWinner) return;
 
         // Clear the round but don't deal yet
-        room.deck = [];
-        room.discardPile = [];
-        room.melds = [];
-        room.currentPlayer = (room.currentPlayer + 1) % room.players.length;
-        room.drawSource = null;
-        room.drawnCards = [];
+        room.startNewRound();
         
         // Show deal modal to all players
         room.players.forEach(player => {
@@ -623,7 +638,9 @@ io.on('connection', (socket) => {
         // Find and update player status in all rooms
         rooms.forEach((room, roomCode) => {
             const shouldDelete = room.removePlayer(socket.id);
+            
             if (shouldDelete) {
+                console.log(`Deleting empty room ${roomCode}`);
                 rooms.delete(roomCode);
             } else {
                 // Notify other players
