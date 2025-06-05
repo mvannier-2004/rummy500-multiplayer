@@ -101,6 +101,7 @@
 
         .opponent.current-turn {
             box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+            animation: pulse 2s infinite;
         }
 
         .opponent:hover {
@@ -331,51 +332,6 @@
             color: #000;
         }
 
-        .card-back {
-            background: linear-gradient(45deg, #8B0000 25%, #DC143C 25%, #DC143C 50%, #8B0000 50%, #8B0000 75%, #DC143C 75%, #DC143C);
-            background-size: 10px 10px;
-        }
-
-        .controls {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 12px 25px;
-            background: linear-gradient(45deg, #4CAF50, #45a049);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn:disabled {
-            background: gray;
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-
-        .btn.danger {
-            background: linear-gradient(45deg, #f44336, #d32f2f);
-        }
-
         .modal {
             position: fixed;
             top: 0;
@@ -417,6 +373,18 @@
             }
             to {
                 opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 215, 0, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
             }
         }
 
@@ -472,28 +440,6 @@
             }
         }
 
-        .turn-indicator {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            border: 3px solid #FFD700;
-            border-radius: 10px;
-            pointer-events: none;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7);
-            }
-            70% {
-                box-shadow: 0 0 0 10px rgba(255, 215, 0, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
-            }
-        }
-
         .connection-status {
             position: fixed;
             top: 10px;
@@ -510,6 +456,39 @@
 
         .connection-status.disconnected {
             color: #f44336;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: gray;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn.danger {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
         }
     </style>
 </head>
@@ -545,11 +524,11 @@
 
             <div class="table-area">
                 <div class="deck-area">
-                    <div class="deck" id="deck" onclick="drawFromDeck()">
+                    <div class="deck" id="deck">
                         <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 0.8em;">DECK</div>
                         <div class="deck-count" id="deckCount">52</div>
                     </div>
-                    <div class="discard-pile empty" id="discardPile" onclick="drawFromDiscard()">
+                    <div class="discard-pile empty" id="discardPile">
                         <span style="color: rgba(255,255,255,0.5); font-size: 0.5em;">Empty</span>
                     </div>
                 </div>
@@ -564,13 +543,14 @@
         </div>
     </div>
 
+    <!-- Modals -->
     <div class="modal" id="startModal" style="display: flex;">
         <div class="modal-content">
             <h2>Welcome to Rummy 500!</h2>
             <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
             <br><br>
-            <button class="btn" onclick="createRoom()">Create Room</button>
-            <button class="btn" onclick="showJoinRoom()">Join Room</button>
+            <button class="btn" id="createRoomBtn">Create Room</button>
+            <button class="btn" id="joinRoomBtn">Join Room</button>
         </div>
     </div>
 
@@ -579,8 +559,8 @@
             <h2>Join a Room</h2>
             <input type="text" id="joinRoomCode" placeholder="Enter room code" maxlength="6" style="text-transform: uppercase;">
             <br><br>
-            <button class="btn" onclick="joinRoom()">Join</button>
-            <button class="btn danger" onclick="hideJoinRoom()">Cancel</button>
+            <button class="btn" id="joinBtn">Join</button>
+            <button class="btn danger" id="cancelJoinBtn">Cancel</button>
         </div>
     </div>
 
@@ -590,8 +570,8 @@
             <p>Room Code: <strong id="waitingRoomCode" style="font-size: 1.5em;"></strong></p>
             <p>Share this code with your friends!</p>
             <div id="waitingPlayerList" style="margin: 20px 0;"></div>
-            <button class="btn" onclick="startGame()" id="startGameBtn" style="display: none;">Start Game</button>
-            <button class="btn danger" onclick="leaveRoom()">Leave Room</button>
+            <button class="btn" id="startGameBtn" style="display: none;">Start Game</button>
+            <button class="btn danger" id="leaveRoomBtn">Leave Room</button>
         </div>
     </div>
 
@@ -600,7 +580,7 @@
             <h2 id="dealTitle">Ready to Start!</h2>
             <p id="dealMessage">All players have joined. Click below to shuffle and deal the cards.</p>
             <div id="dealPlayerList" style="margin: 20px 0;"></div>
-            <button class="btn" onclick="dealCards()" id="dealBtn" style="font-size: 1.2em; padding: 15px 30px;">
+            <button class="btn" id="dealBtn" style="font-size: 1.2em; padding: 15px 30px;">
                 🃏 Deal Cards 🃏
             </button>
         </div>
@@ -610,832 +590,641 @@
         <div class="modal-content">
             <h2 id="scoreTitle">Round Complete!</h2>
             <div class="score-board" id="scoreBoard"></div>
-            <button class="btn" onclick="nextRound()" id="nextRoundBtn">Next Round</button>
+            <button class="btn" id="nextRoundBtn">Next Round</button>
         </div>
     </div>
 
     <div class="notification" id="notification"></div>
 
     <script>
-        // Socket.io connection
-        const socketUrl = window.location.hostname === 'localhost' 
-            ? 'http://localhost:3000' 
-            : window.location.origin;
-        console.log('Connecting to:', socketUrl);
-        const socket = io(socketUrl);
-        
-        // Game state
-        let gameState = {
-            roomCode: '',
-            players: [],
-            currentPlayer: 0,
-            myHand: [],
-            discardPile: [],
-            melds: [],
-            selectedCards: [],
-            selectedMeld: -1,
-            hasDrawn: false,
-            playerId: '',
-            playerName: '',
-            isHost: false,
-            gameStarted: false,
-            myTurn: false,
-            deckCount: 52,
-            discardCount: 0
-        };
-
-        // Drag and drop variables (declare only once at the top)
-        let draggedCard = null;
-        let draggedIndex = null;
-
-        // Socket event handlers
-        socket.on('connect', () => {
-            updateConnectionStatus(true);
-            console.log('Connected to server');
-        });
-
-        socket.on('disconnect', () => {
-            updateConnectionStatus(false);
-            showNotification('Disconnected from server');
-        });
-
-        socket.on('room_created', (data) => {
-            console.log('Room created:', data);
-            gameState.roomCode = data.roomCode;
-            document.getElementById('waitingModal').style.display = 'flex';
-            document.getElementById('waitingRoomCode').textContent = data.roomCode;
-            if (gameState.isHost) {
-                document.getElementById('startGameBtn').style.display = 'inline-block';
-            }
-        });
-
-        socket.on('room_joined', (data) => {
-            console.log('Room joined:', data);
-            gameState.roomCode = data.roomCode;
-            document.getElementById('joinModal').style.display = 'none';
-            document.getElementById('waitingModal').style.display = 'flex';
-            document.getElementById('waitingRoomCode').textContent = data.roomCode;
-        });
-
-        socket.on('game_update', (data) => {
-            console.log('Game update received:', data); // Debug log
-            updateGameState(data);
-            updateDisplay();
-        });
-
-        socket.on('game_started', () => {
-            document.getElementById('waitingModal').style.display = 'none';
-            gameState.gameStarted = true;
-            
-            // Show deal modal instead of starting immediately
-            showDealModal();
-        });
-
-        socket.on('cards_dealt', () => {
-            document.getElementById('dealModal').style.display = 'none';
-            showNotification('Cards dealt! Game is starting...');
-            // Force a display update after cards are dealt
-            setTimeout(() => {
-                updateDisplay();
-            }, 100);
-        });
-
-        socket.on('notification', (data) => {
-            showNotification(data.message);
-        });
-
-        socket.on('error', (data) => {
-            showNotification('Error: ' + data.message);
-        });
-
-        socket.on('round_end', (data) => {
-            showScoreModal(data);
-        });
-
-        // Game functions
-        function updateConnectionStatus(connected) {
-            const status = document.getElementById('connectionStatus');
-            if (connected) {
-                status.textContent = 'Connected';
-                status.className = 'connection-status connected';
-            } else {
-                status.textContent = 'Disconnected';
-                status.className = 'connection-status disconnected';
-            }
-        }
-
-        function updateGameState(data) {
-            // Preserve local UI state
-            const preservedState = {
-                selectedCards: gameState.selectedCards,
-                selectedMeld: gameState.selectedMeld,
-                playerName: gameState.playerName,
-                playerId: gameState.playerId
+        // Game Module - Clean implementation
+        const Rummy500Game = (() => {
+            // State management
+            let state = {
+                roomCode: '',
+                players: [],
+                currentPlayer: 0,
+                myHand: [],
+                discardPile: [],
+                melds: [],
+                selectedCards: [],
+                selectedMeld: -1,
+                hasDrawn: false,
+                playerId: '',
+                playerName: '',
+                isHost: false,
+                gameStarted: false,
+                myTurn: false,
+                deckCount: 52,
+                discardCount: 0
             };
-            
-            // Update game state from server
-            gameState = { ...gameState, ...data, ...preservedState };
-            
-            // Update hasDrawn flag
-            if (gameState.myTurn && data.hasDrawn !== undefined) {
-                gameState.hasDrawn = data.hasDrawn;
-            }
-        }
 
-        function updateDisplay() {
-            console.log('UpdateDisplay called, gameState:', gameState); // Debug
-            updateOpponents();
-            updatePlayerHand();
-            updateDiscardPile();
-            updateMeldArea();
-            updateGameInfo();
-            updateControls();
-        }
+            // Socket connection
+            const socketUrl = window.location.hostname === 'localhost' 
+                ? 'http://localhost:3000' 
+                : window.location.origin;
+            const socket = io(socketUrl);
 
-        function updateOpponents() {
-            const container = document.getElementById('opponentsArea');
-            container.innerHTML = '';
+            // Drag and drop state
+            let draggedCard = null;
+            let draggedIndex = null;
 
-            gameState.players.forEach((player, index) => {
-                if (player.id !== gameState.playerId) {
-                    const div = document.createElement('div');
-                    div.className = 'opponent';
-                    if (!player.connected) {
-                        div.classList.add('disconnected');
-                    }
-                    if (index === gameState.currentPlayer) {
-                        div.classList.add('current-turn');
-                    }
-                    div.innerHTML = `
-                        <div>${player.name} ${!player.connected ? '(Disconnected)' : ''}</div>
-                        <div>Cards: ${player.handCount}</div>
-                        <div>Score: ${player.score}</div>
-                    `;
-                    container.appendChild(div);
-                }
-            });
-        }
-
-        // Drag and drop handlers
-        function handleDragStart(e) {
-            draggedCard = this;
-            draggedIndex = parseInt(this.dataset.index);
-            this.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/html', this.innerHTML);
-        }
-
-        function handleDragEnd(e) {
-            this.classList.remove('dragging');
-            
-            // Remove drag-over class from all cards
-            document.querySelectorAll('.card').forEach(card => {
-                card.classList.remove('drag-over');
-            });
-        }
-
-        function handleDragOver(e) {
-            if (e.preventDefault) {
-                e.preventDefault();
-            }
-            e.dataTransfer.dropEffect = 'move';
-            
-            const targetIndex = parseInt(this.dataset.index);
-            if (targetIndex !== draggedIndex) {
-                this.classList.add('drag-over');
-            }
-            
-            return false;
-        }
-
-        function handleDragLeave(e) {
-            this.classList.remove('drag-over');
-        }
-
-        function handleDrop(e) {
-            if (e.stopPropagation) {
-                e.stopPropagation();
-            }
-            
-            const targetIndex = parseInt(this.dataset.index);
-            
-            if (draggedIndex !== targetIndex) {
-                // Rearrange the cards in hand
-                const draggedCardData = gameState.myHand[draggedIndex];
-                gameState.myHand.splice(draggedIndex, 1);
-                gameState.myHand.splice(targetIndex, 0, draggedCardData);
+            // DOM Elements
+            const elements = {
+                // Modals
+                startModal: document.getElementById('startModal'),
+                joinModal: document.getElementById('joinModal'),
+                waitingModal: document.getElementById('waitingModal'),
+                dealModal: document.getElementById('dealModal'),
+                scoreModal: document.getElementById('scoreModal'),
                 
-                // Update selected cards indices if needed
-                gameState.selectedCards = gameState.selectedCards.map(idx => {
-                    if (idx === draggedIndex) return targetIndex;
-                    if (draggedIndex < idx && idx <= targetIndex) return idx - 1;
-                    if (targetIndex <= idx && idx < draggedIndex) return idx + 1;
-                    return idx;
+                // Inputs
+                playerNameInput: document.getElementById('playerName'),
+                joinRoomCodeInput: document.getElementById('joinRoomCode'),
+                
+                // Buttons
+                createRoomBtn: document.getElementById('createRoomBtn'),
+                joinRoomBtn: document.getElementById('joinRoomBtn'),
+                joinBtn: document.getElementById('joinBtn'),
+                cancelJoinBtn: document.getElementById('cancelJoinBtn'),
+                startGameBtn: document.getElementById('startGameBtn'),
+                leaveRoomBtn: document.getElementById('leaveRoomBtn'),
+                dealBtn: document.getElementById('dealBtn'),
+                nextRoundBtn: document.getElementById('nextRoundBtn'),
+                
+                // Game areas
+                deck: document.getElementById('deck'),
+                discardPile: document.getElementById('discardPile'),
+                playerHand: document.getElementById('playerHand'),
+                meldArea: document.getElementById('meldArea'),
+                opponentsArea: document.getElementById('opponentsArea'),
+                floatingControls: document.getElementById('floatingControls'),
+                
+                // Info displays
+                roomCode: document.getElementById('roomCode'),
+                playerCount: document.getElementById('playerCount'),
+                playerScore: document.getElementById('playerScore'),
+                currentTurn: document.getElementById('currentTurn'),
+                deckCount: document.getElementById('deckCount'),
+                connectionStatus: document.getElementById('connectionStatus'),
+                notification: document.getElementById('notification'),
+                
+                // Modal content
+                waitingRoomCode: document.getElementById('waitingRoomCode'),
+                waitingPlayerList: document.getElementById('waitingPlayerList'),
+                dealTitle: document.getElementById('dealTitle'),
+                dealMessage: document.getElementById('dealMessage'),
+                dealPlayerList: document.getElementById('dealPlayerList'),
+                scoreTitle: document.getElementById('scoreTitle'),
+                scoreBoard: document.getElementById('scoreBoard')
+            };
+
+            // Utility functions
+            const showNotification = (message) => {
+                elements.notification.textContent = message;
+                elements.notification.style.display = 'block';
+                setTimeout(() => {
+                    elements.notification.style.display = 'none';
+                }, 3000);
+            };
+
+            const updateConnectionStatus = (connected) => {
+                elements.connectionStatus.textContent = connected ? 'Connected' : 'Disconnected';
+                elements.connectionStatus.className = connected ? 'connection-status connected' : 'connection-status disconnected';
+            };
+
+            // Socket event handlers
+            const setupSocketEvents = () => {
+                socket.on('connect', () => {
+                    updateConnectionStatus(true);
+                    console.log('Connected to server');
                 });
+
+                socket.on('disconnect', () => {
+                    updateConnectionStatus(false);
+                    showNotification('Disconnected from server');
+                });
+
+                socket.on('room_created', (data) => {
+                    state.roomCode = data.roomCode;
+                    elements.waitingModal.style.display = 'flex';
+                    elements.waitingRoomCode.textContent = data.roomCode;
+                    if (state.isHost) {
+                        elements.startGameBtn.style.display = 'inline-block';
+                    }
+                });
+
+                socket.on('room_joined', (data) => {
+                    state.roomCode = data.roomCode;
+                    elements.joinModal.style.display = 'none';
+                    elements.waitingModal.style.display = 'flex';
+                    elements.waitingRoomCode.textContent = data.roomCode;
+                });
+
+                socket.on('game_update', (data) => {
+                    updateGameState(data);
+                    updateDisplay();
+                });
+
+                socket.on('game_started', () => {
+                    elements.waitingModal.style.display = 'none';
+                    state.gameStarted = true;
+                    showDealModal();
+                });
+
+                socket.on('cards_dealt', () => {
+                    elements.dealModal.style.display = 'none';
+                    showNotification('Cards dealt! Game is starting...');
+                    setTimeout(updateDisplay, 100);
+                });
+
+                socket.on('notification', (data) => {
+                    showNotification(data.message);
+                });
+
+                socket.on('error', (data) => {
+                    showNotification('Error: ' + data.message);
+                });
+
+                socket.on('round_end', (data) => {
+                    showScoreModal(data);
+                });
+            };
+
+            // Game state management
+            const updateGameState = (data) => {
+                // Preserve local UI state
+                const preservedState = {
+                    selectedCards: state.selectedCards,
+                    selectedMeld: state.selectedMeld,
+                    playerName: state.playerName,
+                    playerId: state.playerId
+                };
                 
+                // Update state from server
+                state = { ...state, ...data, ...preservedState };
+                
+                // Update hasDrawn flag
+                if (state.myTurn && data.hasDrawn !== undefined) {
+                    state.hasDrawn = data.hasDrawn;
+                }
+            };
+
+            // Display update functions
+            const updateDisplay = () => {
+                updateGameInfo();
+                updateOpponents();
+                updateDeckArea();
+                updateMeldArea();
                 updatePlayerHand();
-                updateControls();
-            }
-            
-            return false;
-        }
+                updateFloatingControls();
+            };
 
-        // Add discard pile drag handlers
-        function handleDiscardDragOver(e) {
-            if (e.preventDefault) {
-                e.preventDefault();
-            }
-            
-            // Only allow if it's player's turn and they've drawn
-            if (gameState.myTurn && gameState.hasDrawn) {
-                e.dataTransfer.dropEffect = 'move';
-                this.classList.add('drag-over');
-            }
-            
-            return false;
-        }
+            const updateGameInfo = () => {
+                elements.roomCode.textContent = state.roomCode || '-';
+                elements.playerCount.textContent = `${state.players.length}/8`;
+                elements.deckCount.textContent = state.deckCount || '52';
+                
+                const player = state.players.find(p => p.id === state.playerId);
+                elements.playerScore.textContent = player ? player.score : '0';
+                
+                if (state.players[state.currentPlayer]) {
+                    const currentPlayerName = state.players[state.currentPlayer].name;
+                    elements.currentTurn.textContent = state.myTurn ? 'Your Turn!' : currentPlayerName;
+                }
+            };
 
-        function handleDiscardDragLeave(e) {
-            this.classList.remove('drag-over');
-        }
+            const updateOpponents = () => {
+                elements.opponentsArea.innerHTML = '';
+                
+                state.players.forEach((player, index) => {
+                    if (player.id !== state.playerId) {
+                        const div = document.createElement('div');
+                        div.className = 'opponent';
+                        if (!player.connected) div.classList.add('disconnected');
+                        if (index === state.currentPlayer) div.classList.add('current-turn');
+                        
+                        div.innerHTML = `
+                            <div>${player.name} ${!player.connected ? '(Disconnected)' : ''}</div>
+                            <div>Cards: ${player.handCount}</div>
+                            <div>Score: ${player.score}</div>
+                        `;
+                        
+                        elements.opponentsArea.appendChild(div);
+                    }
+                });
+            };
 
-        function handleDiscardDrop(e) {
-            if (e.stopPropagation) {
-                e.stopPropagation();
-            }
-            
-            this.classList.remove('drag-over');
-            
-            if (gameState.myTurn && gameState.hasDrawn && draggedIndex !== null) {
-                // Discard the dragged card
-                socket.emit('discard_card', {
-                    roomCode: gameState.roomCode,
-                    playerId: gameState.playerId,
-                    cardIndex: draggedIndex
+            const updateDeckArea = () => {
+                // Update deck click handler
+                elements.deck.onclick = () => {
+                    if (!state.myTurn || state.hasDrawn) {
+                        if (!state.myTurn) showNotification("It's not your turn!");
+                        if (state.hasDrawn) showNotification("You've already drawn!");
+                        return;
+                    }
+                    
+                    socket.emit('draw_deck', {
+                        roomCode: state.roomCode,
+                        playerId: state.playerId
+                    });
+                    state.hasDrawn = true;
+                };
+
+                // Update discard pile
+                elements.discardPile.innerHTML = '';
+                elements.discardPile.className = 'discard-pile';
+                
+                if (state.discardPile.length > 0) {
+                    const topCard = state.discardPile[0];
+                    elements.discardPile.className = `discard-pile card ${topCard.suit && ['♥', '♦'].includes(topCard.suit) ? 'red' : 'black'}`;
+                    elements.discardPile.textContent = topCard.rank === 'Joker' ? '🃏' : `${topCard.rank}${topCard.suit}`;
+                } else {
+                    elements.discardPile.className = 'discard-pile empty';
+                    elements.discardPile.innerHTML = '<span style="color: rgba(255,255,255,0.5); font-size: 0.5em;">Empty</span>';
+                }
+                
+                // Set up discard pile interactions
+                if (!state.myTurn && state.gameStarted && state.discardPile.length > 0) {
+                    elements.discardPile.classList.add('can-call-rummy');
+                    elements.discardPile.onclick = () => {
+                        socket.emit('call_rummy', {
+                            roomCode: state.roomCode,
+                            playerId: state.playerId
+                        });
+                        showNotification("Rummy! called - checking if valid...");
+                    };
+                } else {
+                    elements.discardPile.classList.remove('can-call-rummy');
+                    elements.discardPile.onclick = () => {
+                        if (!state.myTurn || state.hasDrawn) {
+                            if (!state.myTurn) showNotification("It's not your turn!");
+                            if (state.hasDrawn) showNotification("You've already drawn!");
+                            return;
+                        }
+                        
+                        socket.emit('draw_discard', {
+                            roomCode: state.roomCode,
+                            playerId: state.playerId,
+                            numberOfCards: 1
+                        });
+                        state.hasDrawn = true;
+                    };
+                }
+                
+                // Set up drag and drop for discard
+                elements.discardPile.ondragover = (e) => {
+                    e.preventDefault();
+                    if (state.myTurn && state.hasDrawn) {
+                        e.dataTransfer.dropEffect = 'move';
+                        elements.discardPile.classList.add('drag-over');
+                    }
+                };
+                
+                elements.discardPile.ondragleave = () => {
+                    elements.discardPile.classList.remove('drag-over');
+                };
+                
+                elements.discardPile.ondrop = (e) => {
+                    e.preventDefault();
+                    elements.discardPile.classList.remove('drag-over');
+                    
+                    if (state.myTurn && state.hasDrawn && draggedIndex !== null) {
+                        socket.emit('discard_card', {
+                            roomCode: state.roomCode,
+                            playerId: state.playerId,
+                            cardIndex: draggedIndex
+                        });
+                        state.selectedCards = [];
+                        state.hasDrawn = false;
+                    }
+                };
+            };
+
+            const updateMeldArea = () => {
+                elements.meldArea.innerHTML = '';
+                
+                state.melds.forEach((meld, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'meld';
+                    if (state.selectedMeld === index) div.classList.add('selected-meld');
+                    
+                    div.onclick = () => {
+                        if (!state.myTurn || state.selectedCards.length === 0) return;
+                        state.selectedMeld = state.selectedMeld === index ? -1 : index;
+                        updateDisplay();
+                    };
+                    
+                    meld.cards.forEach(card => {
+                        const cardDiv = document.createElement('div');
+                        cardDiv.className = `card ${card.suit && ['♥', '♦'].includes(card.suit) ? 'red' : 'black'}`;
+                        cardDiv.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
+                        div.appendChild(cardDiv);
+                    });
+                    
+                    elements.meldArea.appendChild(div);
+                });
+            };
+
+            const updatePlayerHand = () => {
+                elements.playerHand.innerHTML = '';
+                
+                if (!state.myHand || state.myHand.length === 0) return;
+                
+                state.myHand.forEach((card, index) => {
+                    const div = document.createElement('div');
+                    div.className = `card ${card.suit && ['♥', '♦'].includes(card.suit) ? 'red' : 'black'}`;
+                    if (state.selectedCards.includes(index)) div.classList.add('selected');
+                    
+                    div.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
+                    
+                    // Click handler
+                    div.onclick = () => {
+                        if (!state.myTurn) {
+                            showNotification("It's not your turn!");
+                            return;
+                        }
+                        
+                        const idx = state.selectedCards.indexOf(index);
+                        if (idx > -1) {
+                            state.selectedCards.splice(idx, 1);
+                        } else {
+                            state.selectedCards.push(index);
+                        }
+                        updateDisplay();
+                    };
+                    
+                    // Drag and drop
+                    div.draggable = true;
+                    div.dataset.index = index;
+                    
+                    div.ondragstart = (e) => {
+                        draggedCard = div;
+                        draggedIndex = index;
+                        div.classList.add('dragging');
+                        e.dataTransfer.effectAllowed = 'move';
+                    };
+                    
+                    div.ondragend = () => {
+                        div.classList.remove('dragging');
+                        document.querySelectorAll('.card').forEach(c => c.classList.remove('drag-over'));
+                    };
+                    
+                    div.ondragover = (e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        if (parseInt(div.dataset.index) !== draggedIndex) {
+                            div.classList.add('drag-over');
+                        }
+                    };
+                    
+                    div.ondragleave = () => {
+                        div.classList.remove('drag-over');
+                    };
+                    
+                    div.ondrop = (e) => {
+                        e.preventDefault();
+                        const targetIndex = parseInt(div.dataset.index);
+                        
+                        if (draggedIndex !== targetIndex) {
+                            const draggedCardData = state.myHand[draggedIndex];
+                            state.myHand.splice(draggedIndex, 1);
+                            state.myHand.splice(targetIndex, 0, draggedCardData);
+                            
+                            // Update selected indices
+                            state.selectedCards = state.selectedCards.map(idx => {
+                                if (idx === draggedIndex) return targetIndex;
+                                if (draggedIndex < idx && idx <= targetIndex) return idx - 1;
+                                if (targetIndex <= idx && idx < draggedIndex) return idx + 1;
+                                return idx;
+                            });
+                            
+                            updatePlayerHand();
+                        }
+                    };
+                    
+                    elements.playerHand.appendChild(div);
+                });
+            };
+
+            const updateFloatingControls = () => {
+                elements.floatingControls.innerHTML = '';
+                
+                if (!state.myTurn || !state.gameStarted) return;
+                
+                // Meld button
+                if (state.selectedCards.length >= 3) {
+                    const meldBtn = document.createElement('button');
+                    meldBtn.className = 'floating-btn';
+                    meldBtn.textContent = 'Meld Selected';
+                    meldBtn.onclick = () => {
+                        socket.emit('meld_cards', {
+                            roomCode: state.roomCode,
+                            playerId: state.playerId,
+                            cardIndices: state.selectedCards
+                        });
+                        state.selectedCards = [];
+                    };
+                    elements.floatingControls.appendChild(meldBtn);
+                }
+                
+                // Lay off button
+                if (state.selectedCards.length > 0 && state.selectedMeld >= 0) {
+                    const layoffBtn = document.createElement('button');
+                    layoffBtn.className = 'floating-btn';
+                    layoffBtn.textContent = 'Lay Off to Meld';
+                    layoffBtn.onclick = () => {
+                        socket.emit('layoff_cards', {
+                            roomCode: state.roomCode,
+                            playerId: state.playerId,
+                            cardIndices: state.selectedCards,
+                            meldIndex: state.selectedMeld
+                        });
+                        state.selectedCards = [];
+                        state.selectedMeld = -1;
+                    };
+                    elements.floatingControls.appendChild(layoffBtn);
+                }
+            };
+
+            // Modal functions
+            const showDealModal = () => {
+                elements.dealPlayerList.innerHTML = '<h3>Players Ready:</h3>';
+                state.players.forEach(player => {
+                    elements.dealPlayerList.innerHTML += `
+                        <div style="margin: 5px; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 5px;">
+                            ${player.name} ${player.id === state.playerId ? '(You)' : ''}
+                        </div>`;
                 });
                 
-                // Clear selections
-                gameState.selectedCards = [];
-                gameState.hasDrawn = false;
-            }
-            
-            return false;
-        }
-
-        function updatePlayerHand() {
-            const container = document.getElementById('playerHand');
-            container.innerHTML = '';
-            
-            console.log('Updating player hand, cards:', gameState.myHand); // Debug
-
-            if (!gameState.myHand || gameState.myHand.length === 0) {
-                console.log('No cards in hand');
-                return;
-            }
-
-            gameState.myHand.forEach((card, index) => {
-                const div = document.createElement('div');
-                div.className = `card ${card.suit && ['♥', '♦'].includes(card.suit) ? 'red' : 'black'}`;
-                if (gameState.selectedCards.includes(index)) {
-                    div.classList.add('selected');
+                if (state.isHost) {
+                    elements.dealBtn.style.display = 'inline-block';
+                    elements.dealBtn.disabled = false;
+                    elements.dealBtn.textContent = '🃏 Deal Cards 🃏';
+                } else {
+                    elements.dealBtn.style.display = 'none';
+                    elements.dealMessage.textContent = 'Waiting for host to deal cards...';
                 }
-                div.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
-                div.onclick = () => selectCard(index);
                 
-                // Add drag and drop functionality
-                div.draggable = true;
-                div.dataset.index = index;
+                elements.dealModal.style.display = 'flex';
+            };
+
+            const showScoreModal = (data) => {
+                elements.scoreBoard.innerHTML = '';
                 
-                div.addEventListener('dragstart', handleDragStart);
-                div.addEventListener('dragend', handleDragEnd);
-                div.addEventListener('dragover', handleDragOver);
-                div.addEventListener('drop', handleDrop);
-                div.addEventListener('dragleave', handleDragLeave);
+                if (data.gameWinner) {
+                    elements.scoreTitle.textContent = `${data.gameWinner.name} Wins!`;
+                    elements.nextRoundBtn.style.display = 'none';
+                } else {
+                    elements.scoreTitle.textContent = 'Round Complete!';
+                    elements.nextRoundBtn.style.display = 'inline-block';
+                }
                 
-                container.appendChild(div);
-            });
-        }
-
-        // Drag and drop handlers
-        let draggedCard = null;
-        let draggedIndex = null;
-
-        function handleDragStart(e) {
-            draggedCard = this;
-            draggedIndex = parseInt(this.dataset.index);
-            this.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/html', this.innerHTML);
-        }
-
-        function handleDragEnd(e) {
-            this.classList.remove('dragging');
-            
-            // Remove drag-over class from all cards
-            document.querySelectorAll('.card').forEach(card => {
-                card.classList.remove('drag-over');
-            });
-        }
-
-        function handleDragOver(e) {
-            if (e.preventDefault) {
-                e.preventDefault();
-            }
-            e.dataTransfer.dropEffect = 'move';
-            
-            const targetIndex = parseInt(this.dataset.index);
-            if (targetIndex !== draggedIndex) {
-                this.classList.add('drag-over');
-            }
-            
-            return false;
-        }
-
-        function handleDragLeave(e) {
-            this.classList.remove('drag-over');
-        }
-
-        // Add discard pile drag handlers
-        function handleDiscardDragOver(e) {
-            if (e.preventDefault) {
-                e.preventDefault();
-            }
-            
-            // Only allow if it's player's turn and they've drawn
-            if (gameState.myTurn && gameState.hasDrawn) {
-                e.dataTransfer.dropEffect = 'move';
-                this.classList.add('drag-over');
-            }
-            
-            return false;
-        }
-
-        function handleDiscardDragLeave(e) {
-            this.classList.remove('drag-over');
-        }
-
-        function handleDiscardDrop(e) {
-            if (e.stopPropagation) {
-                e.stopPropagation();
-            }
-            
-            this.classList.remove('drag-over');
-            
-            if (gameState.myTurn && gameState.hasDrawn && draggedIndex !== null) {
-                // Discard the dragged card
-                socket.emit('discard_card', {
-                    roomCode: gameState.roomCode,
-                    playerId: gameState.playerId,
-                    cardIndex: draggedIndex
+                data.scores.forEach(score => {
+                    elements.scoreBoard.innerHTML += `
+                        <div class="score-item">
+                            <span>${score.name}</span>
+                            <span>${score.roundScore > 0 ? '+' : ''}${score.roundScore} (Total: ${score.totalScore})</span>
+                        </div>
+                    `;
                 });
                 
-                // Clear selections
-                gameState.selectedCards = [];
-                gameState.hasDrawn = false;
-            }
-            
-            return false;
-        }
+                elements.scoreModal.style.display = 'flex';
+            };
 
-        function updateDiscardPile() {
-            const pile = document.getElementById('discardPile');
-            pile.className = 'discard-pile';
-            
-            if (gameState.discardPile.length > 0) {
-                const topCard = gameState.discardPile[0];
-                pile.className = `discard-pile card ${topCard.suit && ['♥', '♦'].includes(topCard.suit) ? 'red' : 'black'}`;
-                pile.textContent = topCard.rank === 'Joker' ? '🃏' : `${topCard.rank}${topCard.suit}`;
-            } else {
-                pile.className = 'discard-pile empty';
-                pile.innerHTML = '<span style="color: rgba(255,255,255,0.5); font-size: 0.5em;">Empty</span>';
-            }
-            
-            // Add drag and drop for discarding
-            pile.addEventListener('dragover', handleDiscardDragOver);
-            pile.addEventListener('drop', handleDiscardDrop);
-            pile.addEventListener('dragleave', handleDiscardDragLeave);
-            
-            // Add click handler for Call Rummy
-            if (!gameState.myTurn && gameState.gameStarted) {
-                pile.classList.add('can-call-rummy');
-                pile.onclick = callRummy;
-            } else {
-                pile.classList.remove('can-call-rummy');
-                pile.onclick = drawFromDiscard;
-            }
-        }
+            // Button event handlers
+            const setupEventHandlers = () => {
+                elements.createRoomBtn.onclick = () => {
+                    const name = elements.playerNameInput.value.trim();
+                    if (!name) {
+                        showNotification('Please enter your name');
+                        return;
+                    }
+                    
+                    state.playerName = name;
+                    state.playerId = Math.random().toString(36).substr(2, 9);
+                    state.isHost = true;
+                    
+                    socket.emit('create_room', {
+                        playerId: state.playerId,
+                        playerName: state.playerName
+                    });
+                    
+                    elements.startModal.style.display = 'none';
+                };
 
-        function updateMeldArea() {
-            const container = document.getElementById('meldArea');
-            container.innerHTML = '';
+                elements.joinRoomBtn.onclick = () => {
+                    elements.startModal.style.display = 'none';
+                    elements.joinModal.style.display = 'flex';
+                    elements.joinRoomCodeInput.focus();
+                };
 
-            gameState.melds.forEach((meld, index) => {
-                const div = document.createElement('div');
-                div.className = 'meld';
-                if (gameState.selectedMeld === index) {
-                    div.classList.add('selected-meld');
-                }
-                div.onclick = () => selectMeld(index);
-                
-                meld.cards.forEach(card => {
-                    const cardDiv = document.createElement('div');
-                    cardDiv.className = `card ${card.suit && ['♥', '♦'].includes(card.suit) ? 'red' : 'black'}`;
-                    cardDiv.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
-                    div.appendChild(cardDiv);
+                elements.joinBtn.onclick = () => {
+                    const name = elements.playerNameInput.value.trim();
+                    const roomCode = elements.joinRoomCodeInput.value.trim().toUpperCase();
+                    
+                    if (!name || !roomCode) {
+                        showNotification('Please enter your name and room code');
+                        return;
+                    }
+                    
+                    state.playerName = name;
+                    state.playerId = Math.random().toString(36).substr(2, 9);
+                    
+                    socket.emit('join_room', {
+                        roomCode: roomCode,
+                        playerId: state.playerId,
+                        playerName: state.playerName
+                    });
+                };
+
+                elements.cancelJoinBtn.onclick = () => {
+                    elements.joinModal.style.display = 'none';
+                    elements.startModal.style.display = 'flex';
+                };
+
+                elements.startGameBtn.onclick = () => {
+                    if (!state.isHost || state.players.length < 2) {
+                        showNotification('Need at least 2 players to start');
+                        return;
+                    }
+                    
+                    socket.emit('start_game', {
+                        roomCode: state.roomCode,
+                        playerId: state.playerId
+                    });
+                };
+
+                elements.leaveRoomBtn.onclick = () => {
+                    location.reload();
+                };
+
+                elements.dealBtn.onclick = () => {
+                    if (!state.isHost) return;
+                    
+                    socket.emit('deal_cards', {
+                        roomCode: state.roomCode,
+                        playerId: state.playerId
+                    });
+                    
+                    elements.dealBtn.disabled = true;
+                    elements.dealBtn.textContent = 'Dealing...';
+                };
+
+                elements.nextRoundBtn.onclick = () => {
+                    elements.scoreModal.style.display = 'none';
+                    socket.emit('ready_for_next_round', {
+                        roomCode: state.roomCode,
+                        playerId: state.playerId
+                    });
+                };
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        if (elements.startModal.style.display === 'flex') {
+                            elements.createRoomBtn.click();
+                        } else if (elements.joinModal.style.display === 'flex') {
+                            elements.joinBtn.click();
+                        }
+                    }
                 });
-                
-                container.appendChild(div);
-            });
-        }
+            };
 
-        function updateGameInfo() {
-            document.getElementById('roomCode').textContent = gameState.roomCode;
-            document.getElementById('playerCount').textContent = `${gameState.players.length}/8`;
-            document.getElementById('deckCount').textContent = gameState.deckCount || '52';
-            
-            const player = gameState.players.find(p => p.id === gameState.playerId);
-            if (player) {
-                document.getElementById('playerScore').textContent = player.score;
-            }
-            
-            if (gameState.players[gameState.currentPlayer]) {
-                const currentPlayerName = gameState.players[gameState.currentPlayer].name;
-                document.getElementById('currentTurn').textContent = gameState.myTurn ? 'Your Turn!' : currentPlayerName;
-            }
-        }
+            // Update waiting room periodically
+            const startWaitingRoomUpdater = () => {
+                setInterval(() => {
+                    if (elements.waitingModal.style.display === 'flex' && state.players.length > 0) {
+                        elements.waitingPlayerList.innerHTML = '<h3>Players in Room:</h3>';
+                        state.players.forEach(player => {
+                            elements.waitingPlayerList.innerHTML += `<div style="margin: 5px;">${player.name} ${player.id === state.playerId ? '(You)' : ''}</div>`;
+                        });
+                        
+                        if (state.isHost && state.players.length >= 2) {
+                            elements.startGameBtn.style.display = 'inline-block';
+                        }
+                    }
+                }, 1000);
+            };
 
-        function updateControls() {
-            const container = document.getElementById('floatingControls');
-            container.innerHTML = '';
-            
-            if (!gameState.myTurn || !gameState.gameStarted) return;
-            
-            // Show Meld button if 3+ cards selected
-            if (gameState.selectedCards.length >= 3) {
-                const meldBtn = document.createElement('button');
-                meldBtn.className = 'floating-btn';
-                meldBtn.textContent = 'Meld Selected';
-                meldBtn.onclick = meldCards;
-                container.appendChild(meldBtn);
-            }
-            
-            // Show Lay Off button if cards selected and a meld is selected
-            if (gameState.selectedCards.length > 0 && gameState.selectedMeld >= 0) {
-                const layoffBtn = document.createElement('button');
-                layoffBtn.className = 'floating-btn';
-                layoffBtn.textContent = 'Lay Off to Meld';
-                layoffBtn.onclick = layOffCards;
-                container.appendChild(layoffBtn);
-            }
-        }
+            // Initialize the game
+            const init = () => {
+                setupSocketEvents();
+                setupEventHandlers();
+                startWaitingRoomUpdater();
+                updateConnectionStatus(false);
+            };
 
-        // Player actions
-        function selectCard(index) {
-            if (!gameState.myTurn) {
-                showNotification("It's not your turn!");
-                return;
-            }
+            // Public API
+            return {
+                init
+            };
+        })();
 
-            const selectedIndex = gameState.selectedCards.indexOf(index);
-            if (selectedIndex > -1) {
-                gameState.selectedCards.splice(selectedIndex, 1);
-            } else {
-                gameState.selectedCards.push(index);
-            }
-            updateDisplay();
-        }
-
-        function selectMeld(index) {
-            if (!gameState.myTurn || gameState.selectedCards.length === 0) return;
-            
-            if (gameState.selectedMeld === index) {
-                gameState.selectedMeld = -1;
-            } else {
-                gameState.selectedMeld = index;
-            }
-            updateDisplay();
-        }
-
-        function selectMeld(index) {
-            if (!gameState.myTurn || gameState.selectedCards.length === 0) return;
-            
-            if (gameState.selectedMeld === index) {
-                gameState.selectedMeld = -1;
-            } else {
-                gameState.selectedMeld = index;
-            }
-            updateDisplay();
-        }
-
-        function selectMeld(index) {
-            if (!gameState.myTurn || gameState.selectedCards.length === 0) return;
-            
-            if (gameState.selectedMeld === index) {
-                gameState.selectedMeld = -1;
-            } else {
-                gameState.selectedMeld = index;
-            }
-            updateDisplay();
-        }
-
-        function drawFromDeck() {
-            if (!gameState.myTurn || gameState.hasDrawn) {
-                if (!gameState.myTurn) showNotification("It's not your turn!");
-                if (gameState.hasDrawn) showNotification("You've already drawn!");
-                return;
-            }
-
-            socket.emit('draw_deck', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId
-            });
-            gameState.hasDrawn = true;
-        }
-
-        function drawFromDiscard() {
-            if (!gameState.myTurn || gameState.hasDrawn) {
-                if (!gameState.myTurn) showNotification("It's not your turn!");
-                if (gameState.hasDrawn) showNotification("You've already drawn!");
-                return;
-            }
-
-            // TODO: Implement multiple card selection from discard
-            socket.emit('draw_discard', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId,
-                numberOfCards: 1
-            });
-            gameState.hasDrawn = true;
-        }
-
-        function meldCards() {
-            if (!gameState.myTurn || gameState.selectedCards.length < 3) return;
-
-            socket.emit('meld_cards', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId,
-                cardIndices: gameState.selectedCards
-            });
-            gameState.selectedCards = [];
-        }
-
-        function layOffCards() {
-            if (!gameState.myTurn || gameState.selectedCards.length === 0 || gameState.selectedMeld === -1) return;
-
-            socket.emit('layoff_cards', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId,
-                cardIndices: gameState.selectedCards,
-                meldIndex: gameState.selectedMeld
-            });
-            gameState.selectedCards = [];
-            gameState.selectedMeld = -1;
-        }
-
-        function discardCard() {
-            if (!gameState.myTurn || !gameState.hasDrawn || gameState.selectedCards.length !== 1) return;
-
-            socket.emit('discard_card', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId,
-                cardIndex: gameState.selectedCards[0]
-            });
-            gameState.selectedCards = [];
-            gameState.hasDrawn = false;
-        }
-
-        function callRummy() {
-            if (gameState.myTurn || !gameState.gameStarted) return;
-
-            socket.emit('call_rummy', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId
-            });
-            
-            showNotification("Rummy! called - checking if valid...");
-        }
-
-        // Room management
-        function createRoom() {
-            const name = document.getElementById('playerName').value.trim();
-            if (!name) {
-                showNotification('Please enter your name');
-                return;
-            }
-
-            gameState.playerName = name;
-            gameState.playerId = Math.random().toString(36).substr(2, 9);
-            gameState.isHost = true;
-
-            socket.emit('create_room', {
-                playerId: gameState.playerId,
-                playerName: gameState.playerName
-            });
-
-            document.getElementById('startModal').style.display = 'none';
-        }
-
-        function showJoinRoom() {
-            document.getElementById('startModal').style.display = 'none';
-            document.getElementById('joinModal').style.display = 'flex';
-            document.getElementById('joinRoomCode').focus();
-        }
-
-        function hideJoinRoom() {
-            document.getElementById('joinModal').style.display = 'none';
-            document.getElementById('startModal').style.display = 'flex';
-        }
-
-        // Room management functions
-        function createRoom() {
-            const name = document.getElementById('playerName').value.trim();
-            if (!name) {
-                showNotification('Please enter your name');
-                return;
-            }
-
-            gameState.playerName = name;
-            gameState.playerId = Math.random().toString(36).substr(2, 9);
-            gameState.isHost = true;
-
-            socket.emit('create_room', {
-                playerId: gameState.playerId,
-                playerName: gameState.playerName
-            });
-
-            document.getElementById('startModal').style.display = 'none';
-        }
-
-        function showJoinRoom() {
-            document.getElementById('startModal').style.display = 'none';
-            document.getElementById('joinModal').style.display = 'flex';
-            document.getElementById('joinRoomCode').focus();
-        }
-
-        function hideJoinRoom() {
-            document.getElementById('joinModal').style.display = 'none';
-            document.getElementById('startModal').style.display = 'flex';
-        }
-
-        function joinRoom() {
-            const name = document.getElementById('playerName').value.trim();
-            const roomCode = document.getElementById('joinRoomCode').value.trim().toUpperCase();
-            
-            if (!name || !roomCode) {
-                showNotification('Please enter your name and room code');
-                return;
-            }
-
-            gameState.playerName = name;
-            gameState.playerId = Math.random().toString(36).substr(2, 9);
-
-            socket.emit('join_room', {
-                roomCode: roomCode,
-                playerId: gameState.playerId,
-                playerName: gameState.playerName
-            });
-        }
-
-        function startGame() {
-            if (!gameState.isHost || gameState.players.length < 2) {
-                showNotification('Need at least 2 players to start');
-                return;
-            }
-
-            socket.emit('start_game', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId
-            });
-        }
-
-        function leaveRoom() {
-            location.reload();
-        }
-
-        function showDealModal() {
-            const modal = document.getElementById('dealModal');
-            const playerList = document.getElementById('dealPlayerList');
-            const dealBtn = document.getElementById('dealBtn');
-            const dealTitle = document.getElementById('dealTitle');
-            const dealMessage = document.getElementById('dealMessage');
-            
-            // Show player list
-            playerList.innerHTML = '<h3>Players Ready:</h3>';
-            gameState.players.forEach(player => {
-                playerList.innerHTML += `
-                    <div style="margin: 5px; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 5px;">
-                        ${player.name} ${player.id === gameState.playerId ? '(You)' : ''}
-                    </div>`;
-            });
-            
-            // Check if this is a new round or first game
-            const hasWinner = gameState.players.some(p => p.score >= 500);
-            if (hasWinner) {
-                dealTitle.textContent = 'Game Over!';
-                const winner = gameState.players.find(p => p.score >= 500);
-                dealMessage.textContent = `${winner.name} wins with ${winner.score} points!`;
-                dealBtn.style.display = 'none';
-            } else if (gameState.players.some(p => p.score > 0)) {
-                dealTitle.textContent = 'Ready for Next Round!';
-                dealMessage.textContent = 'Click below to deal cards for the next round.';
-                dealBtn.textContent = '🃏 Deal Next Round 🃏';
-            }
-            
-            // Only host can deal
-            if (gameState.isHost) {
-                dealBtn.style.display = 'inline-block';
-            } else {
-                dealBtn.style.display = 'none';
-                dealMessage.textContent += '\nWaiting for host to deal cards...';
-            }
-            
-            modal.style.display = 'flex';
-        }
-
-        function dealCards() {
-            if (!gameState.isHost) return;
-            
-            socket.emit('deal_cards', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId
-            });
-            
-            document.getElementById('dealBtn').disabled = true;
-            document.getElementById('dealBtn').textContent = 'Dealing...';
-        }
-
-        function showScoreModal(data) {
-            const modal = document.getElementById('scoreModal');
-            const scoreBoard = document.getElementById('scoreBoard');
-            const title = document.getElementById('scoreTitle');
-            const nextBtn = document.getElementById('nextRoundBtn');
-            
-            scoreBoard.innerHTML = '';
-            
-            if (data.gameWinner) {
-                title.textContent = `${data.gameWinner.name} Wins!`;
-                nextBtn.style.display = 'none';
-            } else {
-                title.textContent = 'Round Complete!';
-                nextBtn.style.display = 'inline-block';
-            }
-            
-            data.scores.forEach(score => {
-                scoreBoard.innerHTML += `
-                    <div class="score-item">
-                        <span>${score.name}</span>
-                        <span>${score.roundScore > 0 ? '+' : ''}${score.roundScore} (Total: ${score.totalScore})</span>
-                    </div>
-                `;
-            });
-            
-            modal.style.display = 'flex';
-        }
-
-        function nextRound() {
-            document.getElementById('scoreModal').style.display = 'none';
-            
-            // Show deal modal for next round
-            socket.emit('ready_for_next_round', {
-                roomCode: gameState.roomCode,
-                playerId: gameState.playerId
-            });
-        }
-
-        function showNotification(message) {
-            const notif = document.getElementById('notification');
-            notif.textContent = message;
-            notif.style.display = 'block';
-            setTimeout(() => {
-                notif.style.display = 'none';
-            }, 3000);
-        }
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                if (document.getElementById('startModal').style.display === 'flex') {
-                    createRoom();
-                } else if (document.getElementById('joinModal').style.display === 'flex') {
-                    joinRoom();
-                }
-            }
+        // Start the game when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            Rummy500Game.init();
         });
-
-        // Update waiting room periodically
-        setInterval(() => {
-            if (document.getElementById('waitingModal').style.display === 'flex' && gameState.players.length > 0) {
-                const playerList = document.getElementById('waitingPlayerList');
-                playerList.innerHTML = '<h3>Players in Room:</h3>';
-                gameState.players.forEach(player => {
-                    playerList.innerHTML += `<div style="margin: 5px;">${player.name} ${player.id === gameState.playerId ? '(You)' : ''}</div>`;
-                });
-                
-                if (gameState.isHost && gameState.players.length >= 2) {
-                    document.getElementById('startGameBtn').style.display = 'inline-block';
-                }
-            }
-        }, 1000);
     </script>
 </body>
 </html>
