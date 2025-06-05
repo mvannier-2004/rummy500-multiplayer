@@ -21,6 +21,8 @@
             align-items: center;
             color: white;
             overflow: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: none;
         }
 
         .game-container {
@@ -157,6 +159,8 @@
             background: linear-gradient(45deg, #8B0000 25%, #DC143C 25%, #DC143C 50%, #8B0000 50%, #8B0000 75%, #DC143C 75%, #DC143C);
             background-size: 20px 20px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .deck:hover {
@@ -184,6 +188,8 @@
             color: black;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
             position: relative;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .discard-pile.empty {
@@ -225,6 +231,8 @@
             transition: all 0.3s ease;
             border: 2px dashed rgba(255,255,255,0.3);
             cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .meld:hover {
@@ -301,6 +309,9 @@
             box-shadow: 0 3px 10px rgba(0,0,0,0.3);
             position: relative;
             user-select: none;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
         }
 
         .card:hover {
@@ -909,16 +920,26 @@
                     div.className = 'meld';
                     if (state.selectedMeld === index) div.classList.add('selected-meld');
                     
-                    div.onclick = () => {
+                    // Combined click/touch handler
+                    const selectMeld = () => {
                         if (!state.myTurn || state.selectedCards.length === 0) return;
                         state.selectedMeld = state.selectedMeld === index ? -1 : index;
                         updateDisplay();
+                    };
+                    
+                    // Works for both mouse click and touch tap
+                    div.onclick = selectMeld;
+                    
+                    // Prevent default touch behavior to avoid conflicts
+                    div.ontouchstart = (e) => {
+                        e.stopPropagation(); // Prevent bubbling
                     };
                     
                     meld.cards.forEach(card => {
                         const cardDiv = document.createElement('div');
                         cardDiv.className = `card ${card.suit && ['♥', '♦'].includes(card.suit) ? 'red' : 'black'}`;
                         cardDiv.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
+                        cardDiv.style.touchAction = 'none'; // Ensure cards in melds also have touch-action none
                         div.appendChild(cardDiv);
                     });
                     
@@ -938,7 +959,7 @@
                     
                     div.textContent = card.rank === 'Joker' ? '🃏' : `${card.rank}${card.suit}`;
                     
-                    // Click handler
+                    // Click handler (works for both mouse and touch tap)
                     div.onclick = () => {
                         if (!state.myTurn) {
                             showNotification("It's not your turn!");
@@ -954,10 +975,16 @@
                         updateDisplay();
                     };
                     
-                    // Drag and drop
+                    // Set up both mouse and touch drag
                     div.draggable = true;
                     div.dataset.index = index;
                     
+                    // Touch event state
+                    let touchItem = null;
+                    let touchOffset = { x: 0, y: 0 };
+                    let touchClone = null;
+                    
+                    // Mouse drag events
                     div.ondragstart = (e) => {
                         draggedCard = div;
                         draggedIndex = index;
@@ -1001,6 +1028,113 @@
                             
                             updatePlayerHand();
                         }
+                    };
+                    
+                    // Touch events for iPad/mobile
+                    div.ontouchstart = (e) => {
+                        e.preventDefault(); // Prevent scrolling
+                        const touch = e.touches[0];
+                        touchItem = div;
+                        draggedIndex = index;
+                        
+                        // Create a clone for visual feedback
+                        touchClone = div.cloneNode(true);
+                        touchClone.style.position = 'fixed';
+                        touchClone.style.pointerEvents = 'none';
+                        touchClone.style.opacity = '0.8';
+                        touchClone.style.zIndex = '9999';
+                        touchClone.style.transform = 'scale(1.1)';
+                        document.body.appendChild(touchClone);
+                        
+                        const rect = div.getBoundingClientRect();
+                        touchOffset.x = touch.clientX - rect.left;
+                        touchOffset.y = touch.clientY - rect.top;
+                        
+                        touchClone.style.left = (touch.clientX - touchOffset.x) + 'px';
+                        touchClone.style.top = (touch.clientY - touchOffset.y) + 'px';
+                        
+                        div.classList.add('dragging');
+                    };
+                    
+                    div.ontouchmove = (e) => {
+                        e.preventDefault();
+                        if (!touchClone) return;
+                        
+                        const touch = e.touches[0];
+                        touchClone.style.left = (touch.clientX - touchOffset.x) + 'px';
+                        touchClone.style.top = (touch.clientY - touchOffset.y) + 'px';
+                        
+                        // Find element under touch point
+                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+                        
+                        // Clear previous drag-over states
+                        document.querySelectorAll('.card').forEach(c => c.classList.remove('drag-over'));
+                        
+                        // Check if over another card in hand
+                        if (elementBelow && elementBelow.classList.contains('card') && elementBelow.parentElement === elements.playerHand) {
+                            if (parseInt(elementBelow.dataset.index) !== draggedIndex) {
+                                elementBelow.classList.add('drag-over');
+                            }
+                        }
+                        
+                        // Check if over discard pile
+                        if (elementBelow === elements.discardPile || elements.discardPile.contains(elementBelow)) {
+                            if (state.myTurn && state.hasDrawn) {
+                                elements.discardPile.classList.add('drag-over');
+                            }
+                        } else {
+                            elements.discardPile.classList.remove('drag-over');
+                        }
+                    };
+                    
+                    div.ontouchend = (e) => {
+                        e.preventDefault();
+                        if (!touchClone) return;
+                        
+                        const touch = e.changedTouches[0];
+                        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+                        
+                        // Remove clone
+                        touchClone.remove();
+                        touchClone = null;
+                        div.classList.remove('dragging');
+                        
+                        // Handle drop on another card
+                        if (elementBelow && elementBelow.classList.contains('card') && elementBelow.parentElement === elements.playerHand) {
+                            const targetIndex = parseInt(elementBelow.dataset.index);
+                            
+                            if (draggedIndex !== targetIndex) {
+                                const draggedCardData = state.myHand[draggedIndex];
+                                state.myHand.splice(draggedIndex, 1);
+                                state.myHand.splice(targetIndex, 0, draggedCardData);
+                                
+                                // Update selected indices
+                                state.selectedCards = state.selectedCards.map(idx => {
+                                    if (idx === draggedIndex) return targetIndex;
+                                    if (draggedIndex < idx && idx <= targetIndex) return idx - 1;
+                                    if (targetIndex <= idx && idx < draggedIndex) return idx + 1;
+                                    return idx;
+                                });
+                                
+                                updatePlayerHand();
+                            }
+                        }
+                        
+                        // Handle drop on discard pile
+                        else if ((elementBelow === elements.discardPile || elements.discardPile.contains(elementBelow)) && 
+                                 state.myTurn && state.hasDrawn) {
+                            socket.emit('discard_card', {
+                                roomCode: state.roomCode,
+                                playerId: state.playerId,
+                                cardIndex: draggedIndex
+                            });
+                            state.selectedCards = [];
+                            state.hasDrawn = false;
+                        }
+                        
+                        // Clear all drag-over states
+                        document.querySelectorAll('.card').forEach(c => c.classList.remove('drag-over'));
+                        elements.discardPile.classList.remove('drag-over');
                     };
                     
                     elements.playerHand.appendChild(div);
